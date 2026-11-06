@@ -4,19 +4,22 @@ export type PlayerId = number;
 
 export type CardCategory = 'attack' | 'response' | 'restore';
 
+export type Suit = 'spade' | 'club' | 'heart' | 'diamond';
+
 export interface CardDef {
   id: string;
   name: string;
   category: CardCategory;
   desc: string;
-  /** 牌堆中的张数 */
-  count: number;
 }
 
 /** 牌堆里的每张牌的唯一实例 */
 export interface CardInstance {
   uid: number;
   defId: string;
+  /** 花色/点数（来自实体牌堆；测试造牌可省略） */
+  suit?: Suit;
+  rank?: string;
 }
 
 export interface DamageContext {
@@ -75,11 +78,17 @@ export interface GameState {
   discard: CardInstance[];
   turn: number;
   active: PlayerId;
-  /** 出牌阶段是否已用过「射击」（每回合限一次） */
+  /** 出牌阶段是否已用过「杀」（每回合限一次） */
   shotUsed: boolean;
+  /** 僵局计数：连续无体力变化的已完成回合数 */
+  stallTurns: number;
+  /** 上一回合结束时的全场体力总和（僵局检测基线） */
+  lastTotalHp: number;
   log: LogEntry[];
   /** null = 进行中 */
   winner: PlayerId | null;
+  /** 对局是否已结束（含平局僵局判定） */
+  over: boolean;
 }
 
 export type Action =

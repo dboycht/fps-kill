@@ -1,0 +1,37 @@
+{
+  "cardTypes": {
+    "杀": "sha",
+    "闪": "shan",
+    "桃": "tao",
+    "酒": "jiu",
+    "完美服务器": "perfect-server",
+    "充电宝": "power-bank",
+    "吞子弹": "bullet-eater",
+    "中门对狙": "mid-door-awp",
+    "善意TK": "friendly-tk",
+    "拿来吧你": "gimme-that",
+    "换弹癌": "reload-addict",
+    "王朝来袭": "dynasty-strike"
+  },
+  "playable": ["sha", "shan", "tao"],
+  "suits": {
+    "♠": "spade",
+    "♣": "club",
+    "♥": "heart",
+    "♦": "diamond"
+  },
+  "factions": {
+    "吴：小蜜蜂": "wu",
+    "神": "shen",
+    "群：绿龙": "qun",
+    "蜀：猎鹰": "shu",
+    "魏：天禄": "wei"
+  },
+  "equipment": {
+    "巨龙传说": "dragon-legend",
+    "火沙鹰": "fire-eagle",
+    "荒野公主": "wild-princess",
+    "野牛": "bison",
+    "野荷": "wild-lotus"
+  }
+}

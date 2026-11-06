@@ -1,8 +1,15 @@
 node_modules/
 .tmp/
 logs/
+dist/
 DEVELOPMENT.md
 ERROR.md
 HANDOVER.md
 ACCEPTANCE.md
 *.log
+
+# 素材大图只留本地（真人照片与版权考量，仓库只进清单与说明）
+assets/**/*.png
+assets/**/*.shap
+assets/**/*.jpg
+assets/**/*.webp

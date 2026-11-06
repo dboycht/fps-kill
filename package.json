@@ -9,10 +9,13 @@
   },
   "packageManager": "pnpm@12.16.1",
   "scripts": {
-    "typecheck": "tsc -p .",
+    "typecheck": "tsc -p . && pnpm -C apps/web typecheck",
     "test": "node --test \"packages/engine/test/*.test.ts\"",
     "verify": "pnpm typecheck && pnpm test",
-    "demo": "node scripts/battle.ts"
+    "demo": "node scripts/battle.ts",
+    "web:dev": "pnpm -C apps/web dev",
+    "web:build": "pnpm -C apps/web build",
+    "web:preview": "pnpm -C apps/web preview"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

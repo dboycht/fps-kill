@@ -1,0 +1,86 @@
+[
+  {
+    "id": "dragon-legend",
+    "file": "dragon-legend.diamond.A.png",
+    "name": "巨龙传说",
+    "suit": "diamond",
+    "rank": "A",
+    "attackRange": 7,
+    "distance": 0,
+    "subtype": [
+      "equipment_weapon"
+    ],
+    "description": "◆<b>锁定技</b>，自己回合中使用【杀】仅能对其他角色造成一次伤害，伤害判定如下：牌底进行判定，若其数字小于7，伤害为角色剩余体力一半（上取整），反之一点伤害。",
+    "quote": "“兵者，轨道也。”   \n ——《抗渗兵法》"
+  },
+  {
+    "id": "fire-eagle",
+    "file": "fire-eagle.spade.K.png",
+    "name": "火沙鹰",
+    "suit": "spade",
+    "rank": "K",
+    "attackRange": 9,
+    "distance": 0,
+    "subtype": [
+      "equipment_weapon"
+    ],
+    "description": "◆<b>锁定技</b>，使用【杀】造成伤害时进行牌顶判定：大于8，伤害为1， 等于8，伤害为3，小于8，伤害为0。",
+    "quote": "“老霸道了！”   \n ——《玩孝》"
+  },
+  {
+    "id": "fire-eagle",
+    "file": null,
+    "name": "火沙鹰",
+    "suit": "heart",
+    "rank": "J",
+    "attackRange": 9,
+    "distance": 0,
+    "subtype": [
+      "equipment_weapon"
+    ],
+    "description": "◆<b>锁定技</b>，使用【杀】造成伤害时进行牌顶判定：大于8，伤害为1， 等于8，伤害为3，小于8，伤害为0。",
+    "quote": "“老霸道了！”   \n ——《玩孝》"
+  },
+  {
+    "id": "wild-princess",
+    "file": "wild-princess.club.3.png",
+    "name": "荒野公主",
+    "suit": "club",
+    "rank": "3",
+    "attackRange": 1,
+    "distance": 0,
+    "subtype": [
+      "equipment_weapon"
+    ],
+    "description": "◆<b>锁定技</b>，使用黑【杀】所造成的伤害+1；无法对距离超过2的角色造成伤害。",
+    "quote": "“主战电击枪”   \n ——《***》"
+  },
+  {
+    "id": "bison",
+    "file": "bison.heart.J.png",
+    "name": "野牛",
+    "suit": "heart",
+    "rank": "J",
+    "attackRange": 1,
+    "distance": 0,
+    "subtype": [
+      "equipment_weapon"
+    ],
+    "description": "◆<b>锁定技</b>，使用【杀】无次数限制。",
+    "quote": "“这游戏还有换弹吗？换弹之后，我就会四”   \n ——《牛战士》"
+  },
+  {
+    "id": "wild-lotus",
+    "file": "wild-lotus.club.4.png",
+    "name": "野荷",
+    "suit": "club",
+    "rank": "4",
+    "attackRange": 3,
+    "distance": 0,
+    "subtype": [
+      "equipment_weapon"
+    ],
+    "description": "◆<b>锁定技</b>，使用【杀】造成伤害时，对牌顶进行判定，若数字为4，则对方直接进入濒死状态，反之造成一点伤害。",
+    "quote": "“够买你半条命了。”   \n ——《CNCS》"
+  }
+]

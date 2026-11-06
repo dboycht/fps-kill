@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FPS杀</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="topbar">
+        <h1>FPS杀</h1>
+        <span id="version" class="muted"></span>
+        <nav>
+          <button id="tab-battle-btn" class="tab-btn active">对战</button>
+          <button id="tab-gallery-btn" class="tab-btn">图鉴</button>
+        </nav>
+        <div id="meta" class="muted"></div>
+      </header>
+
+      <main id="tab-battle">
+        <section id="players"></section>
+        <section id="tablebar">
+          <div id="piles" class="muted"></div>
+          <div id="actions">
+            <button id="btn-bot">Bot 代打本回合</button>
+            <button id="btn-end">结束回合</button>
+            <button id="btn-new">新对局</button>
+            <label class="muted">seed <input id="seed-input" type="number" value="42" min="1" max="999999" /></label>
+          </div>
+        </section>
+        <section id="hand-wrap">
+          <h2 id="hand-title"></h2>
+          <div id="hand"></div>
+          <div id="hint" class="muted"></div>
+        </section>
+        <section id="log-wrap">
+          <h2>对局日志</h2>
+          <div id="log"></div>
+        </section>
+      </main>
+
+      <main id="tab-gallery" hidden></main>
+
+      <div id="overlay" hidden></div>
+      <div id="toast" hidden></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

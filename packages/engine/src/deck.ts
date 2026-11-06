@@ -1,5 +1,6 @@
-import type { CardDef, CardInstance } from './types.ts';
+import type { CardInstance } from './types.ts';
 import { rngInt, type RngState } from './rng.ts';
+import { BASE_DECK, type DeckSpec } from './data/base-deck.ts';
 
 /** Fisher-Yates 洗牌：不改原数组，返回新数组与新的 RNG 状态 */
 export function shuffleInstances<T>(list: T[], rng: RngState): { list: T[]; rng: RngState } {
@@ -16,16 +17,12 @@ export function shuffleInstances<T>(list: T[], rng: RngState): { list: T[]; rng:
   return { list: arr, rng: s };
 }
 
-/** 按牌定义构建并洗匀牌堆（uid 从 1 递增） */
-export function buildDeck(defs: CardDef[], rng: RngState): { deck: CardInstance[]; rng: RngState } {
-  const list: CardInstance[] = [];
-  let uid = 1;
-  for (const def of defs) {
-    for (let i = 0; i < def.count; i++) {
-      list.push({ uid, defId: def.id });
-      uid += 1;
-    }
-  }
-  const shuffled = shuffleInstances(list, rng);
-  return { deck: shuffled.list, rng: shuffled.rng };
+/** 按实体牌堆规格生成带 uid 的牌实例（uid 从 1 递增，按规格顺序） */
+export function makeInstances(specs: DeckSpec[]): CardInstance[] {
+  return specs.map((s, i) => ({ uid: i + 1, defId: s.defId, suit: s.suit, rank: s.rank }));
+}
+
+/** 标准牌堆（47 张：杀19 闪20 桃8），uid 固定，进场后再洗 */
+export function baseDeckInstances(): CardInstance[] {
+  return makeInstances(BASE_DECK);
 }

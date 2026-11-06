@@ -11,8 +11,8 @@ export const SKILLS: SkillDef[] = [
   {
     id: 'firepower',
     name: '火力全开',
-    desc: '你造成的「射击」伤害 +1。',
-    onModifyDamage: (ctx) => (ctx.cardId === 'shoot' ? 1 : null),
+    desc: '你造成的「杀」伤害 +1。',
+    onModifyDamage: (ctx) => (ctx.cardId === 'sha' ? 1 : null),
   },
 ];
 

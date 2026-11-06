@@ -7,7 +7,7 @@ import type {
   PlayerId,
   PlayerState,
 } from './types.ts';
-import { buildDeck, shuffleInstances } from './deck.ts';
+import { baseDeckInstances, shuffleInstances } from './deck.ts';
 import { getSkill } from './skills.ts';
 import { BASE_CARDS } from './data/cards.ts';
 import { CHARACTERS } from './data/characters.ts';
@@ -16,6 +16,10 @@ import { CHARACTERS } from './data/characters.ts';
 const HAND_SIZE = 4;
 /** 每回合开始摸牌张数 */
 const TURN_DRAW = 2;
+/** 僵局判定阈值：连续 N 个回合全场体力无变化 → 平局 */
+const STALL_LIMIT = 40;
+/** 回合上限：到达后按剩余体力判定（高者胜，平则平局） */
+const TURN_CAP = 200;
 
 export class GameError extends Error {}
 
@@ -23,14 +27,14 @@ export interface NewGameOptions {
   seed: number;
   /** 各玩家的角色 id，默认 ['rookie', 'gunner'] */
   characterIds?: string[];
-  /** 牌堆构成，默认 BASE_CARDS（牌定义注册表始终包含 BASE_CARDS 全集） */
-  deckDefs?: CardDef[];
+  /** 测试用：空牌堆（配合 initialHands，排除摸牌干扰） */
+  emptyDeck?: boolean;
+  /** 测试用：直接指定牌堆内容（覆盖标准牌堆） */
+  deckOverride?: CardInstance[];
   /** 测试用：直接指定起手手牌（跳过发牌） */
   initialHands?: CardInstance[][];
   /** 测试用：直接指定初始体力 */
   initialHp?: number[];
-  /** 测试用：空牌堆（配合 initialHands，排除摸牌干扰） */
-  startWithEmptyDeck?: boolean;
 }
 
 export function newGame(options: NewGameOptions): GameState {
@@ -39,17 +43,18 @@ export function newGame(options: NewGameOptions): GameState {
 
   const cardDefs: Record<string, CardDef> = {};
   for (const def of BASE_CARDS) cardDefs[def.id] = def;
-  for (const def of options.deckDefs ?? []) cardDefs[def.id] = def;
   const characterDefs: Record<string, CharacterDef> = {};
   for (const def of CHARACTERS) characterDefs[def.id] = def;
 
   let rng = options.seed >>> 0;
-  let deck: CardInstance[] = [];
-  if (!options.startWithEmptyDeck) {
-    const built = buildDeck(options.deckDefs ?? BASE_CARDS, rng);
-    deck = built.deck;
-    rng = built.rng;
-  }
+  let deck: CardInstance[] = options.deckOverride
+    ? options.deckOverride.map((c) => ({ ...c }))
+    : options.emptyDeck
+      ? []
+      : baseDeckInstances();
+  const shuff = shuffleInstances(deck, rng);
+  deck = shuff.list;
+  rng = shuff.rng;
 
   const players: PlayerState[] = characterIds.map((cid, i) => {
     const def = characterDefs[cid];
@@ -86,8 +91,11 @@ export function newGame(options: NewGameOptions): GameState {
     turn: 1,
     active: 1,
     shotUsed: false,
+    stallTurns: 0,
+    lastTotalHp: players.reduce((s, p) => s + p.hp, 0),
     log: [],
     winner: null,
+    over: false,
   };
   pushLog(
     state,
@@ -102,7 +110,7 @@ export function newGame(options: NewGameOptions): GameState {
 /** 纯 reducer：输入旧状态 + 动作，返回新状态。对局结束后的动作是无效操作（原样返回）。 */
 export function reduce(prev: GameState, action: Action): GameState {
   const state: GameState = structuredClone(prev);
-  if (state.winner !== null) return state;
+  if (state.over) return state;
   switch (action.type) {
     case 'PLAY_CARD':
       return playCard(state, action);
@@ -125,7 +133,7 @@ function playCard(state: GameState, action: Extract<Action, { type: 'PLAY_CARD' 
   if (!def) throw new GameError(`未知牌定义：${card.defId}`);
 
   if (def.category === 'response') {
-    throw new GameError(`[${def.name}]只能在响应「射击」时使用，不能主动打出`);
+    throw new GameError(`[${def.name}]只能在响应「杀」时使用，不能主动打出`);
   }
 
   if (def.category === 'attack') {
@@ -221,6 +229,32 @@ function endTurn(state: GameState, action: Extract<Action, { type: 'END_TURN' }>
   state.active = nextId;
   state.shotUsed = false;
   drawCards(state, nextId, TURN_DRAW);
+
+  // 僵局检测：整回合体力总和没变就计数，变了清零
+  const totalHp = state.players.reduce((s, p) => s + p.hp, 0);
+  if (totalHp === state.lastTotalHp) {
+    state.stallTurns += 1;
+  } else {
+    state.stallTurns = 0;
+  }
+  state.lastTotalHp = totalHp;
+  if (state.stallTurns >= STALL_LIMIT) {
+    state.over = true;
+    pushLog(state, `连续 ${STALL_LIMIT} 回合体力无变化，判定僵局：平局`);
+    return state;
+  }
+  if (state.turn > TURN_CAP) {
+    state.over = true;
+    const sorted = [...state.players].sort((a, b) => b.hp - a.hp);
+    const tied = sorted.length > 1 && sorted[0].hp === sorted[1].hp;
+    state.winner = tied ? null : sorted[0].id;
+    pushLog(
+      state,
+      `达到回合上限（${TURN_CAP}），按剩余体力判定：${
+        state.winner !== null ? `${playerLabel(state, state.winner)} 获胜` : '平局'
+      }`,
+    );
+  }
   return state;
 }
 
@@ -228,6 +262,7 @@ function checkGameover(state: GameState): void {
   const alive = state.players.filter((p) => p.alive);
   if (alive.length <= 1) {
     state.winner = alive[0]?.id ?? null;
+    state.over = true;
     pushLog(state, `对局结束：${state.winner !== null ? `${playerLabel(state, state.winner)} 获胜` : '无胜者'}，共 ${state.turn} 回合`);
   }
 }
@@ -257,7 +292,7 @@ function drawRaw(state: GameState): CardInstance | null {
 }
 
 function assertActive(state: GameState, playerId: PlayerId): void {
-  if (state.winner !== null) throw new GameError('对局已结束');
+  if (state.over) throw new GameError('对局已结束');
   if (playerId !== state.active) {
     throw new GameError(`还没轮到玩家${playerId}（当前是玩家${state.active}）`);
   }

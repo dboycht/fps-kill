@@ -1,0 +1,110 @@
+[
+  {
+    "file": "wu/01.png",
+    "faction": "wu",
+    "factionName": "吴：小蜜蜂",
+    "code": "WEI027",
+    "skin": "英伦奶爸",
+    "nick": "妹子",
+    "original": "新UI.WEI027.英伦奶爸.妹子.png"
+  },
+  {
+    "file": "wu/03.png",
+    "faction": "wu",
+    "factionName": "吴：小蜜蜂",
+    "code": "WEI027",
+    "skin": "蹦跳僵尸",
+    "nick": "豆豆",
+    "original": "新UI.WEI027.蹦跳僵尸.豆豆.png"
+  },
+  {
+    "file": "wu/05.png",
+    "faction": "wu",
+    "factionName": "吴：小蜜蜂",
+    "code": "WU001",
+    "skin": "法国兵器",
+    "nick": "载物",
+    "original": "新UI.WU001.法国兵器.载物.png"
+  },
+  {
+    "file": "wu/07.png",
+    "faction": "wu",
+    "factionName": "吴：小蜜蜂",
+    "code": "WU911",
+    "skin": "天才少年",
+    "nick": "车主",
+    "original": "新UI.WU911.天才少年.车主.png"
+  },
+  {
+    "file": "wu/09.png",
+    "faction": "wu",
+    "factionName": "吴：小蜜蜂",
+    "code": "WU🥵",
+    "skin": "科研大蛇",
+    "nick": "火仔",
+    "original": "新UI.WU🥵.科研大蛇.火仔.png"
+  },
+  {
+    "file": "shen/01.png",
+    "faction": "shen",
+    "factionName": "神",
+    "code": "SHENZywOo",
+    "skin": "最终兵器",
+    "nick": "载种",
+    "original": "新UI.SHENZywOo.最终兵器.载种.png"
+  },
+  {
+    "file": "shen/03.png",
+    "faction": "shen",
+    "factionName": "神",
+    "code": "monkey",
+    "skin": "球状闪电",
+    "nick": "莽K",
+    "original": "新UI.monkey.球状闪电.莽K.png"
+  },
+  {
+    "file": "shu/01.png",
+    "faction": "shu",
+    "factionName": "蜀：猎鹰",
+    "code": "Niko🍤",
+    "skin": "超级大虾",
+    "nick": "老尼",
+    "original": "新UI.Niko🍤.超级大虾.老尼.png"
+  },
+  {
+    "file": "shu/03.png",
+    "faction": "shu",
+    "factionName": "蜀：猎鹰",
+    "code": "SHUmOnesy",
+    "skin": "黄色闪电",
+    "nick": "小孩",
+    "original": "新UI.SHUmOnesy.黄色闪电.小孩.png"
+  },
+  {
+    "file": "shu/05.png",
+    "faction": "shu",
+    "factionName": "蜀：猎鹰",
+    "code": "TeSeS🐲",
+    "skin": "飞龙在天",
+    "nick": "龙哥",
+    "original": "新UI.TeSeS🐲.飞龙在天.龙哥.png"
+  },
+  {
+    "file": "shu/07.png",
+    "faction": "shu",
+    "factionName": "蜀：猎鹰",
+    "code": "kyousuke🐳",
+    "skin": "豪情在天",
+    "nick": "嘉豪",
+    "original": "新UI.kyousuke🐳.豪情在天.嘉豪.png"
+  },
+  {
+    "file": "shu/09.png",
+    "faction": "shu",
+    "factionName": "蜀：猎鹰",
+    "code": "🚑🚑🚑",
+    "skin": "救护车主",
+    "nick": "大表猪",
+    "original": "新UI.🚑🚑🚑.救护车主.大表猪.png"
+  }
+]

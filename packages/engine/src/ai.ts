@@ -11,14 +11,14 @@ export function decideAction(state: GameState): Action {
   const findCard = (defId: string) => self.hand.find((c) => c.defId === defId);
 
   if (self.hp < self.maxHp) {
-    const medkit = findCard('medkit');
-    if (medkit) return { type: 'PLAY_CARD', player: self.id, cardUid: medkit.uid };
+    const tao = findCard('tao');
+    if (tao) return { type: 'PLAY_CARD', player: self.id, cardUid: tao.uid };
   }
   if (!state.shotUsed) {
-    const shoot = findCard('shoot');
+    const sha = findCard('sha');
     const target = state.players.find((p) => p.alive && p.id !== self.id);
-    if (shoot && target) {
-      return { type: 'PLAY_CARD', player: self.id, cardUid: shoot.uid, targetId: target.id };
+    if (sha && target) {
+      return { type: 'PLAY_CARD', player: self.id, cardUid: sha.uid, targetId: target.id };
     }
   }
   return { type: 'END_TURN', player: self.id };

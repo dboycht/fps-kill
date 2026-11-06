@@ -7,11 +7,11 @@ export interface BattleResult {
   steps: number;
 }
 
-/** 从 seed 跑一整局 bot 自动对局，直到分出胜负（确定性：同 seed 同轨迹）。 */
-export function runBattle(seed: number, maxSteps = 1000): BattleResult {
+/** 从 seed 跑一整局 bot 自动对局，直到结束（胜负或僵局平局；确定性：同 seed 同轨迹）。 */
+export function runBattle(seed: number, maxSteps = 2000): BattleResult {
   let state = newGame({ seed });
   let steps = 0;
-  while (state.winner === null) {
+  while (!state.over) {
     if (steps >= maxSteps) {
       throw new Error(`对局超过 ${maxSteps} 步未结束（seed=${seed}），疑似停滞`);
     }
