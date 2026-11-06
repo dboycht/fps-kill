@@ -1,0 +1,8 @@
+node_modules/
+.tmp/
+logs/
+DEVELOPMENT.md
+ERROR.md
+HANDOVER.md
+ACCEPTANCE.md
+*.log

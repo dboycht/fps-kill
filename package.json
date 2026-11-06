@@ -1,0 +1,21 @@
+{
+  "name": "fps-kill",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "description": "FPS-themed card battle game (engine-first MVP)",
+  "engines": {
+    "node": ">=22.15"
+  },
+  "packageManager": "pnpm@12.16.1",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "node --test \"packages/engine/test/*.test.ts\"",
+    "verify": "pnpm typecheck && pnpm test",
+    "demo": "node scripts/battle.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
