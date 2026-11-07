@@ -3,11 +3,13 @@ import {
   newGame,
   reduce,
   decideAction,
+  seatLabel,
   type Action,
   type CardInstance,
   type GameState,
   type PlayerId,
 } from '@fpskill/engine';
+import { NetSession } from './net.ts';
 
 declare const __APP_VERSION__: string;
 
@@ -53,8 +55,19 @@ let equipManifest: EquipManifestEntry[] = [];
 const cardImage = new Map<string, CardManifestEntry>();
 
 let state: GameState;
+/** local = 原热座；net = 服务器权威联机（state 真相在 net.rs.game） */
+let mode: 'local' | 'net' = 'local';
 let selectedUid: number | null = null;
 let galleryBuilt = false;
+
+const net = new NetSession({
+  onRoomState: () => render(),
+  onStatus: (text) => {
+    const node = document.getElementById('net-status');
+    if (node) node.textContent = text;
+  },
+  onNotice: (text) => toast(text),
+});
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -73,6 +86,12 @@ function byId(id: string): HTMLElement {
   return node;
 }
 
+function btn(id: string): HTMLButtonElement {
+  const node = byId(id);
+  if (!(node instanceof HTMLButtonElement)) throw new Error('#' + id + ' is not a button');
+  return node;
+}
+
 async function boot(): Promise<void> {
   const [cards, chars, equip] = await Promise.all([
     fetch('/cards-manifest.json').then((r) => r.json() as Promise<CardManifestEntry[]>),
@@ -87,10 +106,40 @@ async function boot(): Promise<void> {
   byId('version').textContent = 'v' + __APP_VERSION__;
   byId('tab-battle-btn').addEventListener('click', () => switchTab('battle'));
   byId('tab-gallery-btn').addEventListener('click', () => switchTab('gallery'));
-  byId('btn-end').addEventListener('click', () => act({ type: 'END_TURN', player: state.active }));
-  byId('btn-bot').addEventListener('click', botTurn);
-  byId('btn-new').addEventListener('click', restart);
-  byId('seed-input').addEventListener('change', restart);
+  byId('net-btn').addEventListener('click', toggleNetMode);
+  byId('btn-end').addEventListener('click', () => {
+    const g = viewState();
+    if (g === null) return;
+    if (!myTurn(g)) {
+      toast('还没到你的回合');
+      return;
+    }
+    act({ type: 'END_TURN', player: g.active });
+  });
+  byId('btn-bot').addEventListener('click', () => {
+    const g = viewState();
+    if (g === null || g.over) return;
+    if (mode === 'net') {
+      if (!myTurn(g)) {
+        toast('还没到你的回合');
+        return;
+      }
+      net.bot();
+      return;
+    }
+    botTurn();
+  });
+  byId('btn-new').addEventListener('click', () => {
+    if (mode === 'net') {
+      netRestartOrStart();
+      return;
+    }
+    restart();
+  });
+  byId('seed-input').addEventListener('change', () => {
+    if (mode === 'net') return; // 联机下 seed 只在点「新对局/开始对局」时生效
+    restart();
+  });
   byId('hand').addEventListener('click', (ev) => {
     const target = (ev.target as HTMLElement).closest('.card');
     if (!(target instanceof HTMLElement) || target.dataset.uid === undefined) return;
@@ -101,6 +150,24 @@ async function boot(): Promise<void> {
     if (!(panel instanceof HTMLElement) || panel.dataset.pid === undefined) return;
     onPlayerClick(Number(panel.dataset.pid));
   });
+
+  byId('net-connect').addEventListener('click', () => void connectNet());
+  byId('net-sit').addEventListener('click', () => {
+    const name = netName();
+    net.sit(name);
+    toast('已请求落座');
+  });
+  byId('net-start').addEventListener('click', netStart);
+  byId('net-reset').addEventListener('click', () => {
+    net.reset();
+    toast('已请求重置房间');
+  });
+  byId('net-disconnect').addEventListener('click', () => {
+    net.disconnect();
+    render();
+  });
+  const savedName = localStorage.getItem('fpskill.name');
+  if (savedName) (byId('net-name') as HTMLInputElement).value = savedName;
 
   restart();
 }
@@ -117,6 +184,94 @@ function switchTab(t: 'battle' | 'gallery'): void {
   }
 }
 
+function toggleNetMode(): void {
+  mode = mode === 'local' ? 'net' : 'local';
+  if (mode === 'net') switchTab('battle');
+  render();
+}
+
+function defaultNetUrl(): string {
+  return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+}
+
+function netName(): string {
+  const input = byId('net-name') as HTMLInputElement;
+  const name = input.value.trim() || '玩家';
+  localStorage.setItem('fpskill.name', name);
+  return name;
+}
+
+async function connectNet(): Promise<void> {
+  const urlInput = byId('net-url') as HTMLInputElement;
+  const url = urlInput.value.trim() || defaultNetUrl();
+  try {
+    await net.connect(url, netName());
+  } catch (e) {
+    net.disconnect();
+    toast('连接失败：' + (e instanceof Error ? e.message : String(e)));
+  }
+  render();
+}
+
+function netStart(): void {
+  const rs = net.rs;
+  if (rs === null || net.mySeat === null) {
+    toast('先落座');
+    return;
+  }
+  const seed = parseSeedInput();
+  net.start(seed);
+}
+
+function netRestartOrStart(): void {
+  const rs = net.rs;
+  if (rs === null || net.mySeat === null) {
+    toast('先落座');
+    return;
+  }
+  const seed = parseSeedInput();
+  if (rs.phase === 'lobby') {
+    if (rs.seats[1] === null || rs.seats[2] === null) {
+      toast('等对手落座后再开局');
+      return;
+    }
+    net.start(seed);
+  } else {
+    net.restart(seed);
+  }
+}
+
+function parseSeedInput(): number | null {
+  const input = byId('seed-input') as HTMLInputElement;
+  const parsed = Math.floor(Number(input.value));
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : null;
+}
+
+// ---------- 状态视图（local=本地 state；net=服务器房间 state） ----------
+
+function viewState(): GameState | null {
+  if (mode === 'local') return state;
+  return net.rs?.game ?? null;
+}
+
+function myTurn(g: GameState): boolean {
+  if (mode === 'local') return true;
+  return net.mySeat !== null && g.active === net.mySeat && !g.over;
+}
+
+/** 当前应该显示/操作谁的手牌：热座=active 玩家；联机=我的座位 */
+function handOwner(g: GameState): (typeof g.players)[number] | null {
+  if (mode === 'local') return g.players[g.active - 1];
+  if (net.mySeat === null) return null;
+  return g.players[net.mySeat - 1];
+}
+
+function seatName(seat: PlayerId): string {
+  const rs = net.rs;
+  if (mode === 'local' || rs === null || seat < 1 || seat > 2) return `玩家${seat}`;
+  return rs.names[seat as 1 | 2] ?? `玩家${seat}`;
+}
+
 function restart(): void {
   const input = byId('seed-input') as HTMLInputElement;
   const parsed = Math.floor(Number(input.value));
@@ -128,6 +283,12 @@ function restart(): void {
 }
 
 function act(action: Action): void {
+  if (mode === 'net') {
+    net.action(action);
+    if (action.type === 'PLAY_CARD') selectedUid = null;
+    render();
+    return;
+  }
   try {
     state = reduce(state, action);
     if (action.type === 'PLAY_CARD') selectedUid = null;
@@ -138,16 +299,23 @@ function act(action: Action): void {
 }
 
 function onCardClick(uid: number): void {
-  if (state.over) return;
-  const card = state.players[state.active - 1].hand.find((c) => c.uid === uid);
+  const g = viewState();
+  if (g === null || g.over) return;
+  if (!myTurn(g)) {
+    toast('还没到你出牌');
+    return;
+  }
+  const owner = handOwner(g);
+  if (owner === null) return;
+  const card = owner.hand.find((c) => c.uid === uid);
   if (!card) return;
-  const def = state.cardDefs[card.defId];
+  const def = g.cardDefs[card.defId];
   if (def.category === 'response') {
     toast(def.name + ' 只能自动响应「杀」，不能主动打出');
     return;
   }
   if (def.category === 'restore') {
-    act({ type: 'PLAY_CARD', player: state.active, cardUid: uid });
+    act({ type: 'PLAY_CARD', player: g.active, cardUid: uid });
     return;
   }
   // attack：选中进入指定目标模式
@@ -156,9 +324,15 @@ function onCardClick(uid: number): void {
 }
 
 function onPlayerClick(pid: PlayerId): void {
-  if (selectedUid === null || state.over) return;
-  if (pid === state.active) return;
-  act({ type: 'PLAY_CARD', player: state.active, cardUid: selectedUid, targetId: pid });
+  const g = viewState();
+  if (g === null) return;
+  if (selectedUid === null || g.over) return;
+  if (!myTurn(g)) {
+    toast('还没到你出牌');
+    return;
+  }
+  if (pid === g.active) return;
+  act({ type: 'PLAY_CARD', player: g.active, cardUid: selectedUid, targetId: pid });
 }
 
 function botTurn(): void {
@@ -175,49 +349,119 @@ function botTurn(): void {
 // ---------- render ----------
 
 function render(): void {
-  renderMeta();
-  renderPlayers();
-  renderHand();
-  renderPiles();
-  renderLog();
-  renderOverlay();
+  renderNetPanel();
+  const g = viewState();
+  if (g === null) {
+    renderLobbyPlaceholder();
+    return;
+  }
+  renderMeta(g);
+  renderPlayers(g);
+  renderHand(g);
+  renderPiles(g);
+  renderLog(g);
+  renderOverlay(g);
+  updateButtons(g);
+}
+
+function renderNetPanel(): void {
+  const panel = byId('net-panel');
+  panel.toggleAttribute('hidden', mode !== 'net');
+  byId('net-btn').classList.toggle('active', mode === 'net');
+  if (mode !== 'net') return;
+  const form = byId('net-form');
+  const roomRow = byId('net-room');
+  form.toggleAttribute('hidden', net.connected);
+  roomRow.toggleAttribute('hidden', !net.connected);
+  if (!net.connected) return;
+  const rs = net.rs;
+  const seatText =
+    rs === null
+      ? '…'
+      : `座位1 ${seatName(1)} ｜ 座位2 ${seatName(2)}`;
+  const mine = net.mySeat !== null ? `（你=${seatLabel(net.mySeat)}）` : '（未落座）';
+  byId('net-info').textContent = `${seatText} ｜ ${mine}`;
+  byId('net-sit').toggleAttribute('hidden', net.mySeat !== null);
+  const canStart = rs !== null && rs.phase === 'lobby' && net.mySeat !== null;
+  byId('net-start').toggleAttribute('hidden', !canStart);
+  if (rs !== null && rs.seed !== null) {
+    (byId('seed-input') as HTMLInputElement).value = String(rs.seed);
+  }
+}
+
+function renderLobbyPlaceholder(): void {
+  byId('meta').textContent = '联机模式｜未开局';
+  const players = byId('players');
+  players.innerHTML = '';
+  const note = el('div', 'muted', '联机大厅 —— 落座后由任一玩家点「开始对局」');
+  note.style.padding = '12px';
+  players.appendChild(note);
+  byId('hand-title').textContent = '尚未开局';
+  byId('hand').innerHTML = '';
+  byId('hint').textContent = '';
+  byId('piles').textContent = '—';
+  byId('log').innerHTML = '';
+  byId('overlay').setAttribute('hidden', '');
+  btn('btn-end').disabled = true;
+  btn('btn-bot').disabled = true;
+  btn('btn-new').disabled = net.mySeat === null;
+}
+
+function updateButtons(g: GameState): void {
+  const turn = myTurn(g);
+  btn('btn-end').disabled = !turn;
+  btn('btn-bot').disabled = !turn;
+  btn('btn-new').disabled = mode === 'net' && net.mySeat === null;
 }
 
 function seedOf(): string {
   return (byId('seed-input') as HTMLInputElement).value;
 }
 
-function renderMeta(): void {
-  byId('meta').textContent = `${state.over ? '对局结束' : '进行中'}｜回合 ${state.turn}｜seed ${seedOf()}`;
+function seedText(): string {
+  if (mode === 'local') return seedOf();
+  const seed = net.rs?.seed;
+  return seed === null || seed === undefined ? '—' : String(seed);
 }
 
-function renderPlayers(): void {
+function renderMeta(g: GameState): void {
+  byId('meta').textContent = `${g.over ? '对局结束' : '进行中'}｜回合 ${g.turn}｜seed ${seedText()}`;
+}
+
+function renderPlayers(g: GameState): void {
   const wrap = byId('players');
   wrap.innerHTML = '';
-  for (const p of state.players) {
-    const def = state.characterDefs[p.characterId];
+  for (const p of g.players) {
+    const def = g.characterDefs[p.characterId];
     const panel = el('div', 'player' + (p.alive ? '' : ' dead'));
     panel.dataset.pid = String(p.id);
-    const activeMark = p.id === state.active && !state.over ? ' ▶ 当前回合' : '';
-    panel.appendChild(el('div', 'player-head', `玩家${p.id} · ${def.name}`));
+    const activeMark = p.id === g.active && !g.over ? ' ▶ 当前回合' : '';
+    const who = mode === 'net' ? `${seatName(p.id)}${p.id === net.mySeat ? '（你）' : ''}` : `玩家${p.id}`;
+    panel.appendChild(el('div', 'player-head', `${who} · ${def.name}`));
     const hp = el('div', 'hp');
     for (let i = 0; i < p.maxHp; i++) hp.appendChild(el('span', 'hp-cell' + (i < p.hp ? ' full' : '')));
     panel.appendChild(hp);
     panel.appendChild(el('div', 'player-info muted', `手牌 ${p.hand.length} 张${activeMark}${p.alive ? '' : ' · 出局'}`));
-    if (selectedUid !== null && p.id !== state.active && p.alive) panel.classList.add('targetable');
+    if (selectedUid !== null && p.id !== g.active && p.alive && myTurn(g)) panel.classList.add('targetable');
     wrap.appendChild(panel);
   }
 }
 
-function renderHand(): void {
-  const active = state.players[state.active - 1];
-  const def = state.characterDefs[active.characterId];
-  byId('hand-title').textContent = state.over
-    ? '对局已结束'
-    : `你的手牌 —— 玩家${active.id}(${def.name})`;
+function renderHand(g: GameState): void {
+  const owner = handOwner(g);
   const hint = byId('hint');
-  if (state.over) {
+  byId('hand-title').textContent =
+    g.over || owner === null
+      ? '对局已结束'
+      : `你的手牌 —— ${mode === 'net' ? `${seatName(owner.id)}（你）` : `玩家${owner.id}`}(${
+          g.characterDefs[owner.characterId].name
+        })`;
+  if (g.over) {
     hint.textContent = '';
+  } else if (owner === null) {
+    hint.textContent = '';
+  } else if (!myTurn(g)) {
+    hint.textContent = '等待对方行动…';
   } else if (selectedUid !== null) {
     hint.textContent = '已选「杀」：点击对方玩家面板出牌；再点一次取消。';
   } else {
@@ -225,19 +469,23 @@ function renderHand(): void {
   }
   const hand = byId('hand');
   hand.innerHTML = '';
-  if (state.over) {
+  if (g.over) {
     hand.appendChild(el('div', 'muted', '——'));
     return;
   }
-  for (const c of active.hand) {
-    const card = buildCardEl(c);
+  if (owner === null) {
+    hand.appendChild(el('div', 'muted', '未落座 —— 在上方联机面板点「落座」'));
+    return;
+  }
+  for (const c of owner.hand) {
+    const card = buildCardEl(g, c);
     card.dataset.uid = String(c.uid);
     hand.appendChild(card);
   }
 }
 
-function buildCardEl(c: CardInstance): HTMLDivElement {
-  const def = state.cardDefs[c.defId];
+function buildCardEl(g: GameState, c: CardInstance): HTMLDivElement {
+  const def = g.cardDefs[c.defId];
   const card = document.createElement('div');
   card.className = 'card' + (def.category === 'response' ? ' response' : '');
   const entry = c.suit && c.rank ? cardImage.get(`${c.defId}.${c.suit}.${c.rank}`) : undefined;
@@ -259,14 +507,14 @@ function buildCardEl(c: CardInstance): HTMLDivElement {
   return card;
 }
 
-function renderPiles(): void {
-  byId('piles').textContent = `牌堆 ${state.deck.length} 张｜弃牌堆 ${state.discard.length} 张｜僵局计数 ${state.stallTurns}/40`;
+function renderPiles(g: GameState): void {
+  byId('piles').textContent = `牌堆 ${g.deck.length} 张｜弃牌堆 ${g.discard.length} 张｜僵局计数 ${g.stallTurns}/40`;
 }
 
-function renderLog(): void {
+function renderLog(g: GameState): void {
   const log = byId('log');
   log.innerHTML = '';
-  const view = state.log.slice(-250);
+  const view = g.log.slice(-250);
   for (const entry of view) {
     const line = el(
       'div',
@@ -281,19 +529,24 @@ function renderLog(): void {
   log.scrollTop = log.scrollHeight;
 }
 
-function renderOverlay(): void {
+function renderOverlay(g: GameState): void {
   const overlay = byId('overlay');
-  if (!state.over) {
+  if (!g.over) {
     overlay.setAttribute('hidden', '');
     return;
   }
   overlay.innerHTML = '';
   const box = el('div', 'overlay-box');
   box.appendChild(
-    el('h2', '', state.winner !== null ? `${playerLabelOf(state.winner)} 获胜！` : '平局（僵局/回合上限）'),
+    el('h2', '', g.winner !== null ? `${playerLabelOf(g, g.winner)} 获胜！` : '平局（僵局/回合上限）'),
   );
   const again = el('button', '', '再来一局（新 seed）');
   again.addEventListener('click', () => {
+    if (mode === 'net') {
+      (byId('seed-input') as HTMLInputElement).value = '';
+      netRestartOrStart();
+      return;
+    }
     (byId('seed-input') as HTMLInputElement).value = '';
     restart();
   });
@@ -304,9 +557,10 @@ function renderOverlay(): void {
   overlay.removeAttribute('hidden');
 }
 
-function playerLabelOf(id: PlayerId): string {
-  const p = state.players[id - 1];
-  return `玩家${p.id}(${state.characterDefs[p.characterId].name})`;
+function playerLabelOf(g: GameState, id: PlayerId): string {
+  const p = g.players[id - 1];
+  if (mode === 'local') return `玩家${p.id}(${g.characterDefs[p.characterId].name})`;
+  return `${seatName(p.id)}(${g.characterDefs[p.characterId].name})`;
 }
 
 // ---------- gallery ----------

@@ -9,10 +9,11 @@
   },
   "packageManager": "pnpm@12.16.1",
   "scripts": {
-    "typecheck": "tsc -p . && pnpm -C apps/web typecheck",
-    "test": "node --test \"packages/engine/test/*.test.ts\"",
+    "typecheck": "tsc -p . && pnpm -C apps/web typecheck && pnpm -C apps/server typecheck",
+    "test": "node --test \"packages/engine/test/*.test.ts\" \"apps/server/test/*.test.ts\"",
     "verify": "pnpm typecheck && pnpm test",
     "demo": "node scripts/battle.ts",
+    "server": "node apps/server/src/main.ts",
     "web:dev": "pnpm -C apps/web dev",
     "web:build": "pnpm -C apps/web build",
     "web:preview": "pnpm -C apps/web preview"

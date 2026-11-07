@@ -1,4 +1,5 @@
 export * from './types.ts';
+export * from './net-protocol.ts';
 export * from './rng.ts';
 export * from './deck.ts';
 export * from './skills.ts';

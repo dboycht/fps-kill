@@ -14,11 +14,27 @@
         <nav>
           <button id="tab-battle-btn" class="tab-btn active">对战</button>
           <button id="tab-gallery-btn" class="tab-btn">图鉴</button>
+          <button id="net-btn" class="tab-btn">联机</button>
         </nav>
         <div id="meta" class="muted"></div>
       </header>
 
       <main id="tab-battle">
+        <section id="net-panel" hidden>
+          <div id="net-form">
+            <label class="muted">服务器 <input id="net-url" placeholder="留空=本页同源；dev 填 ws://127.0.0.1:7000/ws" /></label>
+            <label class="muted">昵称 <input id="net-name" maxlength="24" placeholder="玩家" /></label>
+            <button id="net-connect">连接</button>
+          </div>
+          <div id="net-room" hidden>
+            <span id="net-info" class="muted"></span>
+            <button id="net-sit">落座</button>
+            <button id="net-start">开始对局</button>
+            <button id="net-reset" class="ghost">重置房间</button>
+            <button id="net-disconnect" class="ghost">断开</button>
+            <span id="net-status" class="muted"></span>
+          </div>
+        </section>
         <section id="players"></section>
         <section id="tablebar">
           <div id="piles" class="muted"></div>

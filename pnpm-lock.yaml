@@ -173,11 +173,26 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
+  apps/server:
+    dependencies:
+      '@fpskill/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@mkx/core':
+        specifier: link:../../../mkx-link-2026-11-06/packages/core
+        version: link:../../../mkx-link-2026-11-06/packages/core
+      '@mkx/server':
+        specifier: link:../../../mkx-link-2026-11-06/packages/server
+        version: link:../../../mkx-link-2026-11-06/packages/server
+
   apps/web:
     dependencies:
       '@fpskill/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@mkx/client':
+        specifier: link:../../../mkx-link-2026-11-06/packages/client
+        version: link:../../../mkx-link-2026-11-06/packages/client
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

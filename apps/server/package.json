@@ -1,0 +1,16 @@
+{
+  "name": "@fpskill/server",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc -p .",
+    "test": "node --test \"test/*.test.ts\""
+  },
+  "dependencies": {
+    "@fpskill/engine": "workspace:*",
+    "@mkx/core": "link:../../../mkx-link-2026-11-06/packages/core",
+    "@mkx/server": "link:../../../mkx-link-2026-11-06/packages/server"
+  }
+}
