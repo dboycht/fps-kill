@@ -10,6 +10,18 @@ import type {
 import { baseDeckInstances, shuffleInstances } from './deck.ts';
 import { getSkill } from './skills.ts';
 import { rngInt } from './rng.ts';
+import {
+  attackRangeOf,
+  checkGameover,
+  dealDamage,
+  drawRaw,
+  GameError,
+  playerOf,
+  playerLabel,
+  pushLog,
+  resolveShaAgainst,
+  seatDistance,
+} from './core.ts';
 import { BASE_CARDS, TRICK_NO_TARGET, TRICK_SELF_TARGET } from './data/cards.ts';
 import { CHARACTERS } from './data/characters.ts';
 
@@ -22,12 +34,16 @@ const STALL_LIMIT = 40;
 /** 回合上限：到达后按剩余体力判定（高者胜，平则平局） */
 const TURN_CAP = 200;
 
-export class GameError extends Error {}
+export { GameError } from './core.ts';
 
 export interface NewGameOptions {
   seed: number;
-  /** 各玩家的角色 id，默认 ['rookie', 'gunner'] */
+  /** 各玩家的角色 id（显式指定；测试/热座用） */
   characterIds?: string[];
+  /** 玩家人数（配合 randomHeroes 随机发将；默认 2） */
+  playerCount?: number;
+  /** 从全部武将池随机发放武将（同 seed 同结果） */
+  randomHeroes?: boolean;
   /** 测试用：空牌堆（配合 initialHands，排除摸牌干扰） */
   emptyDeck?: boolean;
   /** 测试用：直接指定牌堆内容（覆盖标准牌堆） */
@@ -38,14 +54,34 @@ export interface NewGameOptions {
   initialHp?: number[];
 }
 
+/** 从武将池按 seed 随机抽 N 名（洗牌取前 N，确定性） */
+export function pickHeroes(seed: number, count: number): string[] {
+  const pool = CHARACTERS.map((c) => c.id);
+  const shuff = shuffleInstances(
+    pool.map((id, i) => ({ uid: i + 1, defId: id })),
+    seed >>> 0,
+  );
+  return shuff.list.slice(0, count).map((c) => c.defId);
+}
+
 export function newGame(options: NewGameOptions): GameState {
-  const characterIds = options.characterIds ?? ['rookie', 'gunner'];
+  let characterIds: string[];
+  if (options.characterIds) {
+    characterIds = options.characterIds;
+  } else if (options.randomHeroes) {
+    characterIds = pickHeroes(options.seed, options.playerCount ?? 2);
+  } else {
+    characterIds = ['rookie', 'gunner'];
+  }
   if (characterIds.length < 2) throw new GameError('至少需要 2 名玩家');
 
   const cardDefs: Record<string, CardDef> = {};
   for (const def of BASE_CARDS) cardDefs[def.id] = def;
   const characterDefs: Record<string, CharacterDef> = {};
   for (const def of CHARACTERS) characterDefs[def.id] = def;
+  for (const cid of characterIds) {
+    if (!characterDefs[cid]) throw new GameError(`未知角色：${cid}`);
+  }
 
   let rng = options.seed >>> 0;
   let deck: CardInstance[] = options.deckOverride
@@ -59,7 +95,6 @@ export function newGame(options: NewGameOptions): GameState {
 
   const players: PlayerState[] = characterIds.map((cid, i) => {
     const def = characterDefs[cid];
-    if (!def) throw new GameError(`未知角色：${cid}`);
     return {
       id: i + 1,
       characterId: cid,
@@ -69,6 +104,11 @@ export function newGame(options: NewGameOptions): GameState {
       alive: true,
       jiuUsed: false,
       perfectShield: false,
+      marks: {},
+      skillUsedTurn: {},
+      skillUsedRound: {},
+      posture: 'back',
+      playSealed: false,
     };
   });
   if (options.initialHp) {
@@ -99,10 +139,13 @@ export function newGame(options: NewGameOptions): GameState {
     deck,
     discard: [],
     turn: 1,
+    round: 1,
     active: 1,
-    shotUsed: false,
+    roundStartPlayer: 1,
+    shaUsed: 0,
     stallTurns: 0,
     lastTotalHp: players.reduce((s, p) => s + p.hp, 0),
+    roundFirstDamage: false,
     log: [],
     winner: null,
     over: false,
@@ -113,7 +156,7 @@ export function newGame(options: NewGameOptions): GameState {
       .map((p) => `${playerLabel(state, p.id)} 体力 ${p.hp}/${p.maxHp}`)
       .join('，')}`,
   );
-  drawCards(state, state.active, TURN_DRAW);
+  drawPhase(state, state.active);
   return state;
 }
 
@@ -126,12 +169,32 @@ export function reduce(prev: GameState, action: Action): GameState {
       return playCard(state, action);
     case 'END_TURN':
       return endTurn(state, action);
+    case 'SKILL':
+      return useSkill(state, action);
     default: {
       const unknown: never = action;
       throw new GameError(`未知动作：${JSON.stringify(unknown)}`);
     }
   }
 }
+
+// ---------- 主动技 ----------
+
+function useSkill(state: GameState, action: Extract<Action, { type: 'SKILL' }>): GameState {
+  assertActive(state, action.player);
+  const player = playerOf(state, action.player);
+  const skill = getSkill(action.skillId);
+  if (!skill || !skill.active || !skill.executeSkill) throw new GameError(`未知技能：${action.skillId}`);
+  const used =
+    skill.active.oncePer === 'turn' ? player.skillUsedTurn[action.skillId] : player.skillUsedRound[action.skillId];
+  if (used) throw new GameError(`【${skill.name}】已用过（${skill.active.oncePer === 'turn' ? '每回合' : '每轮'}限一次）`);
+  skill.executeSkill(state, player, action);
+  if (skill.active.oncePer === 'turn') player.skillUsedTurn[action.skillId] = true;
+  else player.skillUsedRound[action.skillId] = true;
+  return state;
+}
+
+// ---------- 出牌 ----------
 
 function playCard(state: GameState, action: Extract<Action, { type: 'PLAY_CARD' }>): GameState {
   assertActive(state, action.player);
@@ -147,14 +210,15 @@ function playCard(state: GameState, action: Extract<Action, { type: 'PLAY_CARD' 
   }
 
   if (def.category === 'attack') {
-    if (state.shotUsed) throw new GameError(`本回合已用过[${def.name}]（每回合限一次）`);
+    const limit = shaLimitOf(state, player);
+    if (state.shaUsed >= limit) throw new GameError(`本回合已出 ${state.shaUsed} 次[${def.name}]（上限 ${limit}）`);
     if (action.targetId === undefined) throw new GameError(`[${def.name}]需要指定目标`);
     const target = playerOf(state, action.targetId);
     if (target.id === player.id) throw new GameError(`[${def.name}]不能以自己为目标`);
     if (!target.alive) throw new GameError(`[${def.name}]的目标已出局`);
+    if (player.playSealed) throw new GameError(`【软脚】封印中，本回合无法对他人造成伤害`);
     player.hand.splice(idx, 1);
     state.discard.push(card);
-    state.shotUsed = true;
     // 【酒】壮行：打出杀即消耗（即使被闪抵消），本杀伤害 +1
     let base = 1;
     if (player.jiuUsed) {
@@ -163,7 +227,7 @@ function playCard(state: GameState, action: Extract<Action, { type: 'PLAY_CARD' 
       pushLog(state, `【酒】壮行：[${def.name}] 伤害 +1`);
     }
     pushLog(state, `${playerLabel(state, player.id)} 打出 [${def.name}] → ${playerLabel(state, target.id)}`);
-    resolveAttack(state, player.id, target.id, card, base);
+    resolveShaAgainst(state, player, target, card, { baseAmount: base });
     return state;
   }
 
@@ -190,61 +254,15 @@ function playCard(state: GameState, action: Extract<Action, { type: 'PLAY_CARD' 
   return state;
 }
 
-/** MVP 简化：防守方若有「闪避」则自动打出抵消；没有响应窗。baseAmount = 基础伤害（酒已折入）。 */
-function resolveAttack(
-  state: GameState,
-  sourceId: PlayerId,
-  targetId: PlayerId,
-  card: CardInstance,
-  baseAmount: number,
-): void {
-  const target = playerOf(state, targetId);
-  const dodgeIdx = target.hand.findIndex((c) => state.cardDefs[c.defId]?.category === 'response');
-  if (dodgeIdx >= 0) {
-    const dodge = target.hand[dodgeIdx];
-    target.hand.splice(dodgeIdx, 1);
-    state.discard.push(dodge);
-    pushLog(state, `${playerLabel(state, target.id)} 打出 [${state.cardDefs[dodge.defId].name}]，抵消了伤害`);
-    return;
+/** 本回合还可出几张「杀」（1 + 技能加成） */
+export function shaLimitOf(state: GameState, player: PlayerState): number {
+  let limit = 1;
+  for (const sid of state.characterDefs[player.characterId]?.skills ?? []) {
+    const skill = getSkill(sid);
+    limit += skill?.onShaLimitBonus?.(state, player) ?? 0;
   }
-  dealDamage(state, sourceId, targetId, baseAmount, card.defId);
+  return limit;
 }
-
-/**
- * 通用伤害入口：酒不在其中（杀的酒加成已在出牌时折入 baseAmount）；
- * 角色技能钩子按 cardId 匹配（非「杀」来源的伤害不受火力全开加成）。
- */
-function dealDamage(
-  state: GameState,
-  sourceId: PlayerId,
-  targetId: PlayerId,
-  baseAmount: number,
-  cardId: string,
-): void {
-  const target = playerOf(state, targetId);
-  const source = playerOf(state, sourceId);
-  let amount = baseAmount;
-  for (const skillId of state.characterDefs[source.characterId].skills) {
-    const skill = getSkill(skillId);
-    if (!skill) continue;
-    const delta = skill.onModifyDamage?.({ source: sourceId, target: targetId, cardId, amount }, state) ?? null;
-    if (delta) {
-      amount += delta;
-      pushLog(state, `【${skill.name}】触发：伤害 +${delta}`);
-    }
-  }
-  const from = target.hp;
-  target.hp -= amount;
-  pushLog(state, `${playerLabel(state, targetId)} 受到 ${amount} 点伤害，体力 ${from}→${target.hp}`);
-  if (target.hp <= 0) {
-    target.hp = 0;
-    target.alive = false;
-    pushLog(state, `${playerLabel(state, targetId)} 出局！`);
-    checkGameover(state);
-  }
-}
-
-// ---------- instant / trick ----------
 
 function playInstant(state: GameState, player: PlayerState, def: CardDef): void {
   if (def.id === 'jiu') {
@@ -271,7 +289,6 @@ function playTrick(
 ): void {
   const target = action.targetId !== undefined ? playerOf(state, action.targetId) : null;
   if (TRICK_NO_TARGET.has(def.id)) {
-    // 全场生效（王朝来袭）
     player.hand.splice(idx, 1);
     state.discard.push(card);
     resolveDynastyStrike(state, player, def);
@@ -281,6 +298,12 @@ function playTrick(
   if (!target.alive) throw new GameError(`[${def.name}]的目标已出局`);
   if (target.id === player.id && !TRICK_SELF_TARGET.has(def.id)) {
     throw new GameError(`[${def.name}]不能以自己为目标`);
+  }
+  // 拿来吧你：受攻击距离限制
+  if (def.id === 'gimme-that') {
+    const dist = seatDistance(state, player.id, target.id);
+    const range = attackRangeOf(state, player.id);
+    if (dist > range) throw new GameError(`[${def.name}]距离 ${dist} 超出攻击范围 ${range}`);
   }
   player.hand.splice(idx, 1);
   state.discard.push(card);
@@ -406,11 +429,25 @@ function cardName(state: GameState, card: CardInstance): string {
   return state.cardDefs[card.defId]?.name ?? card.defId;
 }
 
+// ---------- 回合与阶段 ----------
+
 function endTurn(state: GameState, action: Extract<Action, { type: 'END_TURN' }>): GameState {
   assertActive(state, action.player);
   const player = playerOf(state, action.player);
 
-  const limit = Math.max(player.hp, 0);
+  // 弃牌阶段开始：海參回收
+  for (const sid of state.characterDefs[player.characterId]?.skills ?? []) {
+    getSkill(sid)?.onDiscardStart?.(state, player);
+  }
+
+  // 弃牌到上限（= 当前体力 + 技能修正）
+  const baseLimit = Math.max(player.hp, 0);
+  let limit = baseLimit;
+  for (const sid of state.characterDefs[player.characterId]?.skills ?? []) {
+    const skill = getSkill(sid);
+    const overridden = skill?.onHandLimit?.(state, player, baseLimit);
+    if (typeof overridden === 'number') limit = overridden;
+  }
   if (player.hand.length > limit) {
     const dropped: string[] = [];
     while (player.hand.length > limit) {
@@ -420,6 +457,12 @@ function endTurn(state: GameState, action: Extract<Action, { type: 'END_TURN' }>
       dropped.push(state.cardDefs[c.defId]?.name ?? c.defId);
     }
     pushLog(state, `${playerLabel(state, player.id)} 弃牌：${dropped.join('、')}（手牌上限 ${limit}）`);
+  }
+
+  // 老尼封印在其回合结束解除
+  if (player.playSealed) {
+    player.playSealed = false;
+    pushLog(state, `【软脚】封印解除：${playerLabel(state, player.id)}`);
   }
 
   const order = state.players.map((p) => p.id);
@@ -438,9 +481,22 @@ function endTurn(state: GameState, action: Extract<Action, { type: 'END_TURN' }>
   }
   state.turn += 1;
   state.active = nextId;
-  state.shotUsed = false;
-  playerOf(state, nextId).jiuUsed = false;
-  drawCards(state, nextId, TURN_DRAW);
+  state.shaUsed = 0;
+  const next = playerOf(state, nextId);
+  next.jiuUsed = false;
+  next.skillUsedTurn = {};
+  next.playSealed = false;
+
+  // 轮次推进：回到本轮首个行动者 → 新一轮（清轮限用/轮标记）
+  if (nextId === state.roundStartPlayer) {
+    state.round += 1;
+    state.roundFirstDamage = false;
+    state.roundStartPlayer = nextId;
+    for (const p of state.players) p.skillUsedRound = {};
+    pushLog(state, `—— 第 ${state.round} 轮 ——`);
+  }
+
+  drawPhase(state, nextId);
 
   // 僵局检测：整回合体力总和没变就计数，变了清零
   const totalHp = state.players.reduce((s, p) => s + p.hp, 0);
@@ -470,12 +526,17 @@ function endTurn(state: GameState, action: Extract<Action, { type: 'END_TURN' }>
   return state;
 }
 
-function checkGameover(state: GameState): void {
-  const alive = state.players.filter((p) => p.alive);
-  if (alive.length <= 1) {
-    state.winner = alive[0]?.id ?? null;
-    state.over = true;
-    pushLog(state, `对局结束：${state.winner !== null ? `${playerLabel(state, state.winner)} 获胜` : '无胜者'}，共 ${state.turn} 回合`);
+/** 摸牌阶段：基础 2 + 技能加成；结束后触发 onDrawEnd（身法判定/鹰精） */
+function drawPhase(state: GameState, playerId: PlayerId): void {
+  const player = playerOf(state, playerId);
+  let count = TURN_DRAW;
+  for (const sid of state.characterDefs[player.characterId]?.skills ?? []) {
+    const skill = getSkill(sid);
+    count += skill?.onDrawBonus?.(state, player) ?? 0;
+  }
+  drawCards(state, playerId, count);
+  for (const sid of state.characterDefs[player.characterId]?.skills ?? []) {
+    getSkill(sid)?.onDrawEnd?.(state, player);
   }
 }
 
@@ -491,36 +552,9 @@ function drawCards(state: GameState, playerId: PlayerId, n: number): void {
   pushLog(state, `${playerLabel(state, playerId)} 摸 ${drawn} 张牌`);
 }
 
-function drawRaw(state: GameState): CardInstance | null {
-  if (state.deck.length === 0) {
-    if (state.discard.length === 0) return null;
-    const shuffled = shuffleInstances(state.discard, state.rng);
-    state.deck = shuffled.list;
-    state.rng = shuffled.rng;
-    pushLog(state, `牌堆已空，弃牌堆 ${state.discard.length} 张重洗`);
-    state.discard = [];
-  }
-  return state.deck.pop() ?? null;
-}
-
 function assertActive(state: GameState, playerId: PlayerId): void {
   if (state.over) throw new GameError('对局已结束');
   if (playerId !== state.active) {
     throw new GameError(`还没轮到玩家${playerId}（当前是玩家${state.active}）`);
   }
-}
-
-function playerOf(state: GameState, id: PlayerId): PlayerState {
-  const p = state.players[id - 1];
-  if (!p) throw new GameError(`玩家不存在：${id}`);
-  return p;
-}
-
-export function playerLabel(state: GameState, id: PlayerId): string {
-  const p = playerOf(state, id);
-  return `玩家${p.id}(${state.characterDefs[p.characterId].name})`;
-}
-
-function pushLog(state: GameState, text: string): void {
-  state.log.push({ turn: state.turn, text });
 }

@@ -3,6 +3,7 @@ export * from './net-protocol.ts';
 export * from './rng.ts';
 export * from './deck.ts';
 export * from './skills.ts';
+export * from './core.ts';
 export * from './reducer.ts';
 export * from './ai.ts';
 export * from './replay.ts';

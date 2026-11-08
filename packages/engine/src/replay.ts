@@ -1,4 +1,4 @@
-import { newGame, reduce } from './reducer.ts';
+import { newGame, reduce, type NewGameOptions } from './reducer.ts';
 import { decideAction } from './ai.ts';
 import type { GameState } from './types.ts';
 
@@ -7,9 +7,10 @@ export interface BattleResult {
   steps: number;
 }
 
-/** 从 seed 跑一整局 bot 自动对局，直到结束（胜负或僵局平局；确定性：同 seed 同轨迹）。 */
-export function runBattle(seed: number, maxSteps = 2000): BattleResult {
-  let state = newGame({ seed });
+/** 从 seed 跑一整局 bot 自动对局，直到结束（胜负或僵局平局；确定性：同 seed 同轨迹）。
+ *  opts 可指定 playerCount/randomHeroes 等开局参数（多人局回归用）。 */
+export function runBattle(seed: number, maxSteps = 2000, opts: Omit<NewGameOptions, 'seed'> = {}): BattleResult {
+  let state = newGame({ seed, ...opts });
   let steps = 0;
   while (!state.over) {
     if (steps >= maxSteps) {

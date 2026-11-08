@@ -96,16 +96,16 @@ test('开局后再 start 拒绝（用 game.restart 重开）', () => {
   assert.equal(again.game!.turn, 1);
 });
 
-test('game.action：非 active 座位拒绝、player 字段不符拒绝', () => {
+test('game.action：非 active 座位拒绝；客户端伪造 player 被服务器盖章无视', () => {
   const s = cmd(seatedRoom(), 'p1', 'game.start', { seed: 42 })!;
   assert.equal(cmd(s, 'p2', 'game.action', { action: { type: 'END_TURN', player: 2 } }), undefined);
-  assert.equal(
-    cmd(s, 'p1', 'game.action', { action: { type: 'END_TURN', player: 2 } }),
-    undefined,
-  );
+  // p1 谎称 player=2 → 盖章为座位 1 → 正常结算
+  const s2 = cmd(s, 'p1', 'game.action', { action: { type: 'END_TURN', player: 2 } });
+  assert.notEqual(s2, undefined);
+  assert.equal(s2!.game!.active, 2);
 });
 
-test('game.action：合法杀被接受（shotUsed），之后 END_TURN 换人', () => {
+test('game.action：合法杀被接受（shaUsed），之后 END_TURN 换人', () => {
   const seed = seedWithAttack();
   let s = cmd(seatedRoom(), 'p1', 'game.start', { seed })!;
   const g0 = s.game!;
@@ -114,11 +114,11 @@ test('game.action：合法杀被接受（shotUsed），之后 END_TURN 换人', 
   s = cmd(s, 'p1', 'game.action', { action: play })!;
   assert.notEqual(s.game, null);
   assert.equal(s.game!.active, 1);
-  assert.equal(s.game!.shotUsed, true);
+  assert.equal(s.game!.shaUsed, 1);
   assert.notEqual(JSON.stringify(s.game), JSON.stringify(g0));
   s = cmd(s, 'p1', 'game.action', { action: { type: 'END_TURN', player: 1 } })!;
   assert.equal(s.game!.active, 2);
-  assert.equal(s.game!.shotUsed, false);
+  assert.equal(s.game!.shaUsed, 0);
   // 换人后旧座位再发被拒
   assert.equal(cmd(s, 'p1', 'game.action', { action: { type: 'END_TURN', player: 1 } }), undefined);
 });
@@ -133,7 +133,7 @@ test('game.action：response 牌主动打出被拒（引擎 GameError 通道）'
   assert.equal(cmd(s, 'p1', 'game.action', { action: bad }), undefined);
   // 房间状态未被破坏
   assert.equal(s.phase, 'playing');
-  assert.equal(s.game!.shotUsed, false);
+  assert.equal(s.game!.shaUsed, 0);
 });
 
 test('game.bot：当前座位一次跑完整回合', () => {
@@ -206,11 +206,73 @@ test('断线重连：同 session 新 pid 保持座位（绑定键 = session）',
 test('parseAction / parseSeed：畸形数据收窄', () => {
   assert.equal(parseAction(null), null);
   assert.equal(parseAction({ type: 'JUNK' }), null);
-  assert.equal(parseAction({ action: { type: 'END_TURN' } }), null); // 缺 player
+  // 缺 player 允许（服务器盖章补座位），但 type 非法仍拒
+  assert.equal(parseAction({ action: { type: 'END_TURN' } })?.type, 'END_TURN');
   assert.equal(parseAction({ action: { type: 'END_TURN', player: 1 } })!.type, 'END_TURN');
   assert.equal(parseAction({ type: 'PLAY_CARD', player: 1, cardUid: 3 })!.type, 'PLAY_CARD');
   assert.equal(parseSeed({ seed: 42 }), 42);
   assert.equal(parseSeed({ seed: 0 }), null);
   assert.equal(parseSeed({ seed: 1.5 }), null);
   assert.equal(parseSeed({}), null);
+});
+
+// ---------- 多人房间（1.1.0） ----------
+
+test('game.config：房主可调人数（2..8），非房主与游戏中被拒', () => {
+  let s = emptyRoomState();
+  s = cmd(s, 'p1', 'game.sit', { name: '甲' })!;
+  s = cmd(s, 'p1', 'game.config', { capacity: 4 })!;
+  assert.equal(s.capacity, 4);
+  assert.equal(s.seats[3], null, '扩容后新座位应实体化');
+  assert.equal(cmd(s, 'p2', 'game.config', { capacity: 6 }), undefined, '非房主拒绝');
+  s = cmd(s, 'p2', 'game.sit', { name: '乙' })!;
+  s = cmd(s, 'p3', 'game.sit', { name: '丙' })!;
+  s = cmd(s, 'p4', 'game.sit', { name: '丁' })!;
+  s = cmd(s, 'p1', 'game.start', { seed: 42 })!;
+  assert.equal(cmd(s, 'p1', 'game.config', { capacity: 6 }), undefined, '游戏中拒绝');
+});
+
+test('game.start：房主门控 + 3 人随机发将', () => {
+  let s = emptyRoomState();
+  s = cmd(s, 'p1', 'game.sit', { name: '甲' })!;
+  s = cmd(s, 'p2', 'game.sit', { name: '乙' })!;
+  s = cmd(s, 'p1', 'game.config', { capacity: 3 })!;
+  s = cmd(s, 'p3', 'game.sit', { name: '丙' })!;
+  assert.equal(cmd(s, 'p2', 'game.start', { seed: 42 }), undefined, '非房主拒绝');
+  s = cmd(s, 'p1', 'game.start', { seed: 42 })!;
+  assert.equal(s.phase, 'playing');
+  assert.equal(s.game!.players.length, 3, '应按容量发 3 名玩家');
+  const ids = s.game!.players.map((p) => p.characterId);
+  assert.equal(new Set(ids).size, 3, '武将不重复');
+  // 座位 2 的玩家出牌被接受（active=1 时被拒、轮到时接受）
+  assert.equal(cmd(s, 'p2', 'game.action', { action: { type: 'END_TURN', player: 2 } }), undefined);
+});
+
+test('game.skill：只收主动技、座位门控一致', () => {
+  let s = emptyRoomState();
+  s = cmd(s, 'p1', 'game.sit', { name: '甲' })!;
+  s = cmd(s, 'p2', 'game.sit', { name: '乙' })!;
+  s = cmd(s, 'p1', 'game.start', { seed: 42 })!;
+  // PLAY_CARD 走 game.skill 通道被拒
+  assert.equal(
+    cmd(s, 'p1', 'game.skill', { action: { type: 'END_TURN', player: 1 } }),
+    undefined,
+  );
+  // SKILL 走 game.action 通道被拒
+  assert.equal(cmd(s, 'p1', 'game.action', { type: 'SKILL', player: 1, skillId: 'kuaiqiang', targetId: 2 }), undefined);
+  // 未知技能被引擎拒绝（返回 undefined 而非崩溃）
+  assert.equal(cmd(s, 'p1', 'game.skill', { type: 'SKILL', player: 1, skillId: 'nope', targetId: 2 }), undefined);
+});
+
+test('game.restart：房主门控（3 人局）', () => {
+  let s = emptyRoomState();
+  s = cmd(s, 'p1', 'game.sit')!;
+  s = cmd(s, 'p2', 'game.sit')!;
+  s = cmd(s, 'p1', 'game.config', { capacity: 3 })!;
+  s = cmd(s, 'p3', 'game.sit')!;
+  s = cmd(s, 'p1', 'game.start', { seed: 42 })!;
+  assert.equal(cmd(s, 'p3', 'game.restart', { seed: 43 }), undefined, '非房主拒绝');
+  const s2 = cmd(s, 'p1', 'game.restart', { seed: 43 })!;
+  assert.equal(s2.seed, 43);
+  assert.equal(s2.game!.players.length, 3);
 });

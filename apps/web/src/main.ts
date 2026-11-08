@@ -6,11 +6,16 @@ import {
   seatLabel,
   TRICK_SELF_TARGET,
   TRICK_NO_TARGET,
+  SKILLS,
+  MIN_CAPACITY,
+  MAX_CAPACITY,
+  seatsFull,
   type Action,
   type CardDef,
   type CardInstance,
   type GameState,
   type PlayerId,
+  type RoomState,
 } from '@fpskill/engine';
 import { NetSession } from './net.ts';
 
@@ -62,6 +67,8 @@ let state: GameState;
 let mode: 'local' | 'net' = 'local';
 let selectedUid: number | null = null;
 let galleryBuilt = false;
+/** 联机主动技待发状态：点按钮进入 → 点目标玩家 → 发 SKILL（needsCard 的牌在发动时自动选） */
+let pendingSkill: { skillId: string } | null = null;
 
 const net = new NetSession({
   onRoomState: () => render(),
@@ -160,6 +167,8 @@ async function boot(): Promise<void> {
     net.sit(name);
     toast('已请求落座');
   });
+  byId('net-cap-minus').addEventListener('click', () => adjustCapacity(-1));
+  byId('net-cap-plus').addEventListener('click', () => adjustCapacity(1));
   byId('net-start').addEventListener('click', netStart);
   byId('net-reset').addEventListener('click', () => {
     net.reset();
@@ -167,6 +176,7 @@ async function boot(): Promise<void> {
   });
   byId('net-disconnect').addEventListener('click', () => {
     net.disconnect();
+    pendingSkill = null;
     render();
   });
   const savedName = localStorage.getItem('fpskill.name');
@@ -216,14 +226,28 @@ async function connectNet(): Promise<void> {
   render();
 }
 
+function adjustCapacity(delta: number): void {
+  const rs = net.rs;
+  if (rs === null || rs.hostPeer !== net.myPeerKey()) return;
+  const next = Math.min(MAX_CAPACITY, Math.max(MIN_CAPACITY, rs.capacity + delta));
+  if (next !== rs.capacity) net.config(next);
+}
+
 function netStart(): void {
   const rs = net.rs;
   if (rs === null || net.mySeat === null) {
     toast('先落座');
     return;
   }
-  const seed = parseSeedInput();
-  net.start(seed);
+  if (rs.hostPeer !== net.myPeerKey()) {
+    toast('只有房主（座位1）能开始对局');
+    return;
+  }
+  if (!seatsFull(rs)) {
+    toast('人数未齐，等所有座位落座');
+    return;
+  }
+  net.start(parseSeedInput());
 }
 
 function netRestartOrStart(): void {
@@ -232,10 +256,14 @@ function netRestartOrStart(): void {
     toast('先落座');
     return;
   }
+  if (rs.hostPeer !== net.myPeerKey()) {
+    toast('只有房主（座位1）能重开对局');
+    return;
+  }
   const seed = parseSeedInput();
   if (rs.phase === 'lobby') {
-    if (rs.seats[1] === null || rs.seats[2] === null) {
-      toast('等对手落座后再开局');
+    if (!seatsFull(rs)) {
+      toast('人数未齐，等所有座位落座');
       return;
     }
     net.start(seed);
@@ -338,11 +366,21 @@ function onCardClick(uid: number): void {
 function onPlayerClick(pid: PlayerId): void {
   const g = viewState();
   if (g === null) return;
-  if (selectedUid === null || g.over) return;
+  if (g.over) return;
   if (!myTurn(g)) {
     toast('还没到你出牌');
     return;
   }
+  // 主动技待发：点目标玩家即发动
+  if (pendingSkill !== null) {
+    if (pid === g.active) {
+      toast('主动技需要指定其他玩家');
+      return;
+    }
+    dispatchSkill(pendingSkill.skillId, pid);
+    return;
+  }
+  if (selectedUid === null) return;
   if (pid === g.active) {
     // 完美服务器 / 换弹癌可以以自己为目标：点自己的面板
     const def = selectedDef(g);
@@ -394,18 +432,46 @@ function renderNetPanel(): void {
   roomRow.toggleAttribute('hidden', !net.connected);
   if (!net.connected) return;
   const rs = net.rs;
-  const seatText =
-    rs === null
-      ? '…'
-      : `座位1 ${seatName(1)} ｜ 座位2 ${seatName(2)}`;
-  const mine = net.mySeat !== null ? `（你=${seatLabel(net.mySeat)}）` : '（未落座）';
-  byId('net-info').textContent = `${seatText} ｜ ${mine}`;
+  if (rs === null) {
+    byId('net-info').textContent = '…';
+    return;
+  }
+  const mine = net.mySeat !== null ? `（你=${seatLabel(net.mySeat)}${isHost(rs) ? '·房主' : ''}）` : '（未落座）';
+  byId('net-info').textContent = `房主 ${rs.hostPeer !== null ? seatName(1) : '？'} ｜ ${mine}`;
+  // 座位表
+  const seatsEl = byId('net-seats');
+  seatsEl.innerHTML = '';
+  for (let seat = 1; seat <= rs.capacity; seat++) {
+    const name = rs.names[seat];
+    const chip = el('span', 'seat-chip' + (name ? ' taken' : ''), `${seatLabel(seat)} ${name ?? '空位'}`);
+    if (net.mySeat === seat) chip.classList.add('me');
+    seatsEl.appendChild(chip);
+  }
+  // 房主配置人数（lobby）
+  const isLobby = rs.phase === 'lobby';
+  byId('net-config-row').toggleAttribute('hidden', !(isLobby && isHost(rs)));
+  (byId('net-cap-value') as HTMLElement).textContent = String(rs.capacity);
   byId('net-sit').toggleAttribute('hidden', net.mySeat !== null);
-  const canStart = rs !== null && rs.phase === 'lobby' && net.mySeat !== null;
+  const canStart = isLobby && isHost(rs);
   byId('net-start').toggleAttribute('hidden', !canStart);
-  if (rs !== null && rs.seed !== null) {
+  if (canStart) {
+    byId('net-start').textContent = seatsFull(rs) ? '开始对局' : `开始对局（${seatedCountOf(rs)}/${rs.capacity}）`;
+  }
+  if (rs.seed !== null) {
     (byId('seed-input') as HTMLInputElement).value = String(rs.seed);
   }
+}
+
+function isHost(rs: RoomState): boolean {
+  return rs.hostPeer !== null && rs.hostPeer === net.myPeerKey();
+}
+
+function seatedCountOf(rs: RoomState): number {
+  let n = 0;
+  for (let seat = 1; seat <= rs.capacity; seat++) {
+    if (rs.seats[seat]) n += 1;
+  }
+  return n;
 }
 
 function renderLobbyPlaceholder(): void {
@@ -431,6 +497,80 @@ function updateButtons(g: GameState): void {
   btn('btn-end').disabled = !turn;
   btn('btn-bot').disabled = !turn;
   btn('btn-new').disabled = mode === 'net' && net.mySeat === null;
+  renderSkillButtons(g);
+}
+
+/** 主动技按钮（联机、我的回合）：点按后需目标的进入待发状态，点玩家面板发动 */
+function renderSkillButtons(g: GameState): void {
+  const wrap = byId('skill-btns');
+  wrap.innerHTML = '';
+  if (mode !== 'net' || g.over || !myTurn(g)) {
+    pendingSkill = null;
+    return;
+  }
+  const me = net.mySeat !== null ? g.players[net.mySeat - 1] : null;
+  if (me === null) return;
+  for (const sid of g.characterDefs[me.characterId]?.skills ?? []) {
+    const skill = SKILLS.find((s) => s.id === sid);
+    if (!skill?.active) continue;
+    const used =
+      skill.active.oncePer === 'turn' ? me.skillUsedTurn[sid] : me.skillUsedRound[sid];
+    const btnNode = el(
+      'button',
+      'skill-btn' + (pendingSkill?.skillId === sid ? ' pending' : ''),
+      `【${skill.name}】`,
+    );
+    if (used) {
+      btnNode.disabled = true;
+      btnNode.title = `${skill.active.oncePer === 'turn' ? '本回合' : '本轮'}已用过`;
+    } else {
+      btnNode.title = skill.desc;
+      btnNode.addEventListener('click', () => {
+        if (pendingSkill?.skillId === sid) {
+          pendingSkill = null;
+          render();
+          return;
+        }
+        if (!skill.active!.needsTarget) {
+          dispatchSkill(sid, undefined);
+          return;
+        }
+        pendingSkill = { skillId: sid };
+        toast(`【${skill.name}】待发动：点击目标玩家`);
+        render();
+      });
+    }
+    wrap.appendChild(btnNode);
+  }
+}
+
+/** 发动主动技：needsCard 的牌自动选第一张符合的（红色牌/闪） */
+function dispatchSkill(skillId: string, targetId: PlayerId | undefined): void {
+  const g = viewState();
+  const skill = SKILLS.find((s) => s.id === skillId);
+  const me = g !== null && net.mySeat !== null ? g.players[net.mySeat - 1] : null;
+  if (g === null || me === null || !skill?.active) return;
+  let cardUid: number | undefined;
+  if (skill.active.needsCard === 'red') {
+    cardUid = me.hand.find((c) => c.suit === 'heart' || c.suit === 'diamond')?.uid;
+    if (cardUid === undefined) {
+      toast('【' + skill.name + '】没有红色手牌');
+      pendingSkill = null;
+      render();
+      return;
+    }
+  } else if (skill.active.needsCard === 'shan') {
+    cardUid = me.hand.find((c) => c.defId === 'shan')?.uid;
+    if (cardUid === undefined) {
+      toast('【' + skill.name + '】没有【闪】');
+      pendingSkill = null;
+      render();
+      return;
+    }
+  }
+  net.skill(skillId, cardUid, targetId);
+  pendingSkill = null;
+  render();
 }
 
 function seedOf(): string {
@@ -462,9 +602,16 @@ function renderPlayers(g: GameState): void {
     const hp = el('div', 'hp');
     for (let i = 0; i < p.maxHp; i++) hp.appendChild(el('span', 'hp-cell' + (i < p.hp ? ' full' : '')));
     panel.appendChild(hp);
-    const shieldMark = p.perfectShield ? '｜🛡 完美服务器护盾' : '';
+    const marks: string[] = [];
+    if (p.perfectShield) marks.push('🛡服务器');
+    if (p.marks.chip) marks.push(`芯${p.marks.chip}`);
+    if (p.marks.haishen) marks.push(`参${p.marks.haishen}`);
+    if (p.marks.gene) marks.push(`因${p.marks.gene}`);
+    if (p.posture === 'front') marks.push('正面');
+    if (p.playSealed) marks.push('被封');
+    const markText = marks.length > 0 ? `｜${marks.join(' ')}` : '';
     panel.appendChild(
-      el('div', 'player-info muted', `手牌 ${p.hand.length} 张${shieldMark}${activeMark}${p.alive ? '' : ' · 出局'}`),
+      el('div', 'player-info muted', `手牌 ${p.hand.length} 张${markText}${activeMark}${p.alive ? '' : ' · 出局'}`),
     );
     const canTarget =
       selectedUid !== null && p.alive && myTurn(g) && (p.id !== g.active || selfOk);
@@ -488,6 +635,9 @@ function renderHand(g: GameState): void {
     hint.textContent = '';
   } else if (!myTurn(g)) {
     hint.textContent = '等待对方行动…';
+  } else if (pendingSkill !== null) {
+    const skill = SKILLS.find((s) => s.id === pendingSkill!.skillId);
+    hint.textContent = `【${skill?.name ?? pendingSkill.skillId}】待发动：点击目标玩家`;
   } else if (selectedUid !== null) {
     const selDef = selectedDef(g);
     const selfOk =

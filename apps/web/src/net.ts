@@ -38,7 +38,13 @@ export class NetSession {
 
   async connect(url: string, name: string): Promise<void> {
     this.disconnect();
-    const link = new Link({ url, name });
+    // sessionId 按标签页持久（sessionStorage）：刷新页面自动续座；新标签 = 新玩家
+    let sid = sessionStorage.getItem('fpskill.sid');
+    if (!sid) {
+      sid = 'tab-' + Math.random().toString(36).slice(2, 10);
+      sessionStorage.setItem('fpskill.sid', sid);
+    }
+    const link = new Link({ url, name, sessionId: sid });
     this.cb.onStatus('连接中…');
     await link.connect();
     const room = await link.join(GAME_ROOM, { name });
@@ -90,8 +96,30 @@ export class NetSession {
     return seatOfPeer(rs, key);
   }
 
+  /** 我的 peer 绑定键（session 优先）；用于房主判定 */
+  myPeerKey(): string | undefined {
+    const room = this.room;
+    if (room === null) return undefined;
+    const pid = room.myPeerId;
+    if (pid === undefined) return undefined;
+    return room.peers.get(pid)?.session ?? pid;
+  }
+
   sit(name: string): void {
     this.room?.send('game.sit', { name });
+  }
+
+  config(capacity: number): void {
+    this.room?.send('game.config', { capacity });
+  }
+
+  skill(skillId: string, cardUid?: number, targetId?: number): void {
+    this.room?.send('game.skill', {
+      type: 'SKILL',
+      skillId,
+      ...(cardUid !== undefined ? { cardUid } : {}),
+      ...(targetId !== undefined ? { targetId } : {}),
+    });
   }
 
   start(seed: number | null): void {

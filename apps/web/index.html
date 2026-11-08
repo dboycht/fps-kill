@@ -28,6 +28,13 @@
           </div>
           <div id="net-room" hidden>
             <span id="net-info" class="muted"></span>
+            <div id="net-seats" class="muted"></div>
+            <div id="net-config-row" hidden>
+              <span class="muted">人数</span>
+              <button id="net-cap-minus" class="ghost">−</button>
+              <span id="net-cap-value"></span>
+              <button id="net-cap-plus" class="ghost">＋</button>
+            </div>
             <button id="net-sit">落座</button>
             <button id="net-start">开始对局</button>
             <button id="net-reset" class="ghost">重置房间</button>
@@ -39,6 +46,7 @@
         <section id="tablebar">
           <div id="piles" class="muted"></div>
           <div id="actions">
+            <span id="skill-btns"></span>
             <button id="btn-bot">Bot 代打本回合</button>
             <button id="btn-end">结束回合</button>
             <button id="btn-new">新对局</button>

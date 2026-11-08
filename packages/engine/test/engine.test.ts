@@ -6,6 +6,8 @@ import {
   reduce,
   runBattle,
   decideAction,
+  pickHeroes,
+  seatDistance,
   GameError,
   BASE_CARDS,
   baseDeckInstances,
@@ -121,7 +123,7 @@ test('杀：无闪时造成 1 点伤害', () => {
   const s0 = testGame({ hands: [makeHand('sha'), []] });
   const s1 = reduce(s0, { type: 'PLAY_CARD', player: 1, cardUid: s0.players[0].hand[0].uid, targetId: 2 });
   assert.equal(s1.players[1].hp, 3);
-  assert.equal(s1.shotUsed, true);
+  assert.equal(s1.shaUsed, 1);
   assert.equal(s1.players[0].hand.length, 0);
   assert.equal(s1.discard.length, 1);
 });
@@ -391,4 +393,227 @@ test('bot：先酒后杀的连招', () => {
   const a1 = decideAction(s1);
   const s2 = reduce(s1, a1);
   assert.equal(s2.players[1].hp, 2, '酒杀应造成 2 点伤害');
+});
+
+// ---------- 多人局 / 距离 / 随机发将 / 武将技能（1.1.0） ----------
+
+test('随机发将：同 seed 同结果、无重复、数量正确', () => {
+  const a = pickHeroes(42, 5);
+  const b = pickHeroes(42, 5);
+  const c = pickHeroes(43, 5);
+  assert.deepEqual(a, b);
+  assert.notDeepEqual(a, c);
+  assert.equal(new Set(a).size, 5);
+  const s = newGame({ seed: 42, randomHeroes: true, playerCount: 5 });
+  assert.equal(s.players.length, 5);
+  assert.deepEqual(s.players.map((p) => p.characterId), pickHeroes(42, 5));
+});
+
+test('环形距离：4 人局对角距离 2，出杀超距被拒', () => {
+  const s0 = newGame({
+    seed: 1,
+    characterIds: ['rookie', 'rookie', 'rookie', 'rookie'],
+    emptyDeck: true,
+    initialHands: [makeHand('sha'), [], [], []],
+  });
+  assert.equal(seatDistance(s0, 1, 2), 1);
+  assert.equal(seatDistance(s0, 1, 3), 2);
+  assert.equal(seatDistance(s0, 1, 4), 1);
+  assert.throws(
+    () => reduce(s0, { type: 'PLAY_CARD', player: 1, cardUid: s0.players[0].hand[0].uid, targetId: 3 }),
+    /超出攻击范围/,
+  );
+  const s1 = reduce(s0, { type: 'PLAY_CARD', player: 1, cardUid: s0.players[0].hand[0].uid, targetId: 2 });
+  assert.equal(s1.players[1].hp, 3);
+});
+
+test('载物·甩狙：攻击距离 +1 对角可杀；≥2 伤判定红则自伤', () => {
+  const s0 = newGame({
+    seed: 7,
+    characterIds: ['zaiwu', 'rookie', 'rookie', 'rookie'],
+    emptyDeck: true,
+    initialHands: [makeHand('jiu', 'sha'), [], [], []],
+    initialHp: [4, 4, 4, 4],
+  });
+  s0.deck = [{ uid: 9001, defId: 'tao', suit: 'heart', rank: '5' }]; // 判定牌直写（deckOverride 会被洗牌）
+  assert.equal(seatDistance(s0, 1, 3), 2);
+  const jiu = s0.players[0].hand[0];
+  const sha = s0.players[0].hand[1];
+  const s1 = reduce(s0, { type: 'PLAY_CARD', player: 1, cardUid: jiu.uid });
+  const s2 = reduce(s1, { type: 'PLAY_CARD', player: 1, cardUid: sha.uid, targetId: 3 });
+  assert.equal(s2.players[2].hp, 2, '距离 2 在甩狙范围内，酒杀 2 伤');
+  assert.ok(s2.log.some((e) => e.text.includes('甩狙') && e.text.includes('红')), '≥2 伤应触发甩狙判定');
+  assert.equal(s2.players[0].hp, 3, '判定红 → 反噬 1 点');
+});
+
+test('载种·锁头：红杀不可被闪抵消', () => {
+  const s0 = newGame({
+    seed: 3,
+    characterIds: ['zaizhong', 'rookie'],
+    emptyDeck: true,
+    initialHands: [makeHand('sha'), makeHand('shan')],
+    deckOverride: [
+      { uid: 9101, defId: 'sha', suit: 'heart', rank: 'A' },
+      { uid: 9102, defId: 'sha', suit: 'spade', rank: 'A' },
+    ],
+  });
+  // 手里这张杀是红桃（makeHand 无花色 → 需要带花色的杀）
+  const redSha = { uid: 9201, defId: 'sha', suit: 'heart' as const, rank: 'A' };
+  const s1 = newGame({
+    seed: 3,
+    characterIds: ['zaizhong', 'rookie'],
+    emptyDeck: true,
+    initialHands: [[redSha], makeHand('shan')],
+  });
+  const s2 = reduce(s1, { type: 'PLAY_CARD', player: 1, cardUid: redSha.uid, targetId: 2 });
+  assert.equal(s2.players[1].hp, 3, '红杀无视闪');
+  assert.equal(s2.players[1].hand.length, 1, '闪仍留在手里');
+});
+
+test('莽K·快枪：主动技直伤 1 点、无视距离、每回合一次', () => {
+  const s0 = newGame({
+    seed: 5,
+    characterIds: ['mangk', 'rookie', 'rookie', 'rookie'],
+    emptyDeck: true,
+    initialHands: [[], [], [], []],
+  });
+  const s1 = reduce(s0, { type: 'SKILL', player: 1, skillId: 'kuaiqiang', targetId: 3 });
+  assert.equal(s1.players[2].hp, 3, '对角也直伤');
+  assert.throws(
+    () => reduce(s1, { type: 'SKILL', player: 1, skillId: 'kuaiqiang', targetId: 2 }),
+    /限一次/,
+  );
+});
+
+test('大表猪·软枪：伤害不致死锁 1；场上仅剩两人时无效', () => {
+  const s0 = newGame({
+    seed: 9,
+    characterIds: ['dabiaozhu', 'rookie', 'rookie'],
+    emptyDeck: true,
+    initialHands: [makeHand('sha', 'sha'), [], []],
+    initialHp: [4, 2, 4],
+  });
+  const s1 = reduce(s0, { type: 'PLAY_CARD', player: 1, cardUid: s0.players[0].hand[0].uid, targetId: 2 });
+  assert.equal(s1.players[1].alive, true, '软枪不致死');
+  assert.equal(s1.players[1].hp, 1);
+  // 预置第三人出局 → 场上仅剩两名存活 → 软枪失效
+  const s2 = newGame({
+    seed: 9,
+    characterIds: ['dabiaozhu', 'rookie', 'rookie'],
+    emptyDeck: true,
+    initialHands: [makeHand('sha'), [], []],
+    initialHp: [4, 1, 4],
+  });
+  s2.players[2].alive = false;
+  const s3 = reduce(s2, { type: 'PLAY_CARD', player: 1, cardUid: s2.players[0].hand[0].uid, targetId: 2 });
+  assert.equal(s3.players[1].alive, false, '仅剩两人时软枪无效');
+});
+
+test('妹子·育婴：弃红牌当桃、一轮限一次、黑牌被拒', () => {
+  const red = { uid: 9301, defId: 'shan', suit: 'diamond' as const, rank: '5' };
+  const black = { uid: 9302, defId: 'shan', suit: 'spade' as const, rank: '5' };
+  const s0 = newGame({
+    seed: 2,
+    characterIds: ['meizi', 'rookie'],
+    emptyDeck: true,
+    initialHands: [[red, black], []],
+    initialHp: [3, 4],
+  });
+  const s1 = reduce(s0, { type: 'SKILL', player: 1, skillId: 'yuying', cardUid: red.uid });
+  assert.equal(s1.players[0].hp, 4);
+  assert.throws(
+    () => reduce(s1, { type: 'SKILL', player: 1, skillId: 'yuying', cardUid: s1.players[0].hand[0].uid }),
+    /限一次/,
+  );
+  const t0 = newGame({
+    seed: 2,
+    characterIds: ['meizi', 'rookie'],
+    emptyDeck: true,
+    initialHands: [[black], []],
+    initialHp: [3, 4],
+  });
+  assert.throws(
+    () => reduce(t0, { type: 'SKILL', player: 1, skillId: 'yuying', cardUid: black.uid }),
+    /红色/,
+  );
+});
+
+test('小孩·海参：造成伤害积累碎片；满 3 封锁伤害；弃牌阶段回收', () => {
+  // 击杀也计碎片（onDamageDealt 在终局判定前触发）
+  const s0 = newGame({
+    seed: 4,
+    characterIds: ['xiaohai', 'rookie'],
+    emptyDeck: true,
+    initialHands: [makeHand('sha', 'sha', 'sha'), []],
+    initialHp: [3, 1],
+  });
+  const s1 = reduce(s0, { type: 'PLAY_CARD', player: 1, cardUid: s0.players[0].hand[0].uid, targetId: 2 });
+  assert.equal(s1.players[0].marks['haishen'], 1, '造成伤害应积累碎片（含击杀）');
+  // 手动灌满 3 碎片验证封锁；牌堆直写 3 张供回收
+  const t0 = newGame({
+    seed: 4,
+    characterIds: ['xiaohai', 'rookie'],
+    emptyDeck: true,
+    initialHands: [makeHand('sha', 'sha', 'sha', 'sha'), []],
+    initialHp: [3, 4],
+  });
+  t0.deck = [
+    { uid: 9601, defId: 'shan', suit: 'club', rank: '4' },
+    { uid: 9602, defId: 'shan', suit: 'club', rank: '5' },
+    { uid: 9603, defId: 'shan', suit: 'club', rank: '6' },
+  ];
+  const seeded = structuredClone(t0);
+  seeded.players[0].marks['haishen'] = 3;
+  const seededSha = seeded.players[0].hand[0];
+  const t1 = reduce(seeded, { type: 'PLAY_CARD', player: 1, cardUid: seededSha.uid, targetId: 2 });
+  assert.equal(t1.players[1].hp, 4, '碎片满 3 后伤害被封锁');
+  assert.ok(t1.log.some((e) => e.text.includes('无法造成伤害')));
+  // 弃牌阶段开始回收：碎片清零并摸回 3 张
+  const t2 = reduce(t1, { type: 'END_TURN', player: 1 });
+  assert.equal(t2.players[0].marks['haishen'] ?? 0, 0, '弃牌阶段碎片回收');
+  assert.ok(t2.log.some((e) => e.text.includes('回收 3 枚碎片为手牌')));
+});
+
+test('嘉豪·豪情：单次伤害 ≥2 摸 1 并自动追加杀', () => {
+  const s0 = newGame({
+    seed: 6,
+    characterIds: ['jiahao', 'rookie'],
+    emptyDeck: true,
+    initialHands: [makeHand('jiu', 'sha', 'sha'), []],
+    initialHp: [4, 4],
+    deckOverride: [{ uid: 9401, defId: 'tao', suit: 'heart', rank: '5' }],
+  });
+  const jiu = s0.players[0].hand[0];
+  const sha = s0.players[0].hand[1];
+  const s1 = reduce(s0, { type: 'PLAY_CARD', player: 1, cardUid: jiu.uid });
+  const s2 = reduce(s1, { type: 'PLAY_CARD', player: 1, cardUid: sha.uid, targetId: 2 });
+  assert.equal(s2.players[1].hp, 1, '酒杀 2 伤 + 追加杀 1 伤 = 3');
+  assert.equal(s2.players[0].hand.length, 1, '3 - 酒 - 杀 + 豪情摸1 - 追加杀 = 1');
+  assert.ok(s2.log.some((e) => e.text.includes('豪情')));
+});
+
+test('豆豆·僵尸：判定红闪无效（判定牌直写 deck 控制）', () => {
+  const mk = (judgeCard: CardInstance) => {
+    const s = newGame({
+      seed: 8,
+      characterIds: ['rookie', 'doudou'],
+      emptyDeck: true,
+      initialHands: [makeHand('sha'), makeHand('shan')],
+    });
+    s.deck = [judgeCard];
+    return s;
+  };
+  const red = mk({ uid: 9501, defId: 'tao', suit: 'heart', rank: '5' });
+  const s1 = reduce(red, { type: 'PLAY_CARD', player: 1, cardUid: red.players[0].hand[0].uid, targetId: 2 });
+  assert.equal(s1.players[1].hp, 3, '判定红 → 闪无效');
+  const black = mk({ uid: 9502, defId: 'sha', suit: 'spade', rank: '5' });
+  const s3 = reduce(black, { type: 'PLAY_CARD', player: 1, cardUid: black.players[0].hand[0].uid, targetId: 2 });
+  assert.equal(s3.players[1].hp, 4, '判定黑 → 闪生效');
+});
+
+test('多人局：5 人随机将 runBattle 能打完且日志含轮次', () => {
+  const { final } = runBattle(2028, 4000, { playerCount: 5, randomHeroes: true });
+  assert.ok(final.over);
+  assert.equal(final.players.length, 5);
+  assert.ok(final.log.some((e) => e.text.includes('第 2 轮')), '应推进轮次');
 });
