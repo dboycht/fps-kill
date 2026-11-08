@@ -68,7 +68,9 @@ button.ghost { opacity: 0.8; }
 
 #tab-gallery .gallery-sec { margin-top: 18px; }
 .gallery-grid { display: flex; flex-wrap: wrap; gap: 12px; }
-.g-item { width: 118px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.g-item { width: 118px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; display: block; text-decoration: none; color: inherit; }
+a.g-item:hover { border-color: var(--accent); }
+.g-link { display: block; text-decoration: none; }
 .g-item.pending { opacity: 0.45; }
 .g-item img { width: 100%; height: 165px; object-fit: cover; display: block; }
 .g-label { font-size: 12px; padding: 5px 6px; }

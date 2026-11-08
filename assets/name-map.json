@@ -13,7 +13,20 @@
     "换弹癌": "reload-addict",
     "王朝来袭": "dynasty-strike"
   },
-  "playable": ["sha", "shan", "tao"],
+  "playable": [
+    "sha",
+    "shan",
+    "tao",
+    "jiu",
+    "power-bank",
+    "perfect-server",
+    "bullet-eater",
+    "mid-door-awp",
+    "friendly-tk",
+    "gimme-that",
+    "reload-addict",
+    "dynasty-strike"
+  ],
   "suits": {
     "♠": "spade",
     "♣": "club",

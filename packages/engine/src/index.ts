@@ -6,5 +6,5 @@ export * from './skills.ts';
 export * from './reducer.ts';
 export * from './ai.ts';
 export * from './replay.ts';
-export { BASE_CARDS } from './data/cards.ts';
+export { BASE_CARDS, TRICK_SELF_TARGET, TRICK_NO_TARGET } from './data/cards.ts';
 export { SKILLS, CHARACTERS } from './data/characters.ts';

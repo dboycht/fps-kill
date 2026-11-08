@@ -16,10 +16,12 @@
     "server": "node apps/server/src/main.ts",
     "web:dev": "pnpm -C apps/web dev",
     "web:build": "pnpm -C apps/web build",
-    "web:preview": "pnpm -C apps/web preview"
+    "web:preview": "pnpm -C apps/web preview",
+    "assets:thumbs": "node scripts/make-thumbs.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "sharp": "^0.35.5",
     "typescript": "^5.9.0"
   }
 }

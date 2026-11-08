@@ -4,7 +4,10 @@ import {
   reduce,
   decideAction,
   seatLabel,
+  TRICK_SELF_TARGET,
+  TRICK_NO_TARGET,
   type Action,
+  type CardDef,
   type CardInstance,
   type GameState,
   type PlayerId,
@@ -298,6 +301,14 @@ function act(action: Action): void {
   render();
 }
 
+/** 当前选中的牌定义（无选中返回 null） */
+function selectedDef(g: GameState): CardDef | null {
+  if (selectedUid === null) return null;
+  const owner = handOwner(g);
+  const card = owner?.hand.find((c) => c.uid === selectedUid);
+  return card ? (g.cardDefs[card.defId] ?? null) : null;
+}
+
 function onCardClick(uid: number): void {
   const g = viewState();
   if (g === null || g.over) return;
@@ -314,11 +325,12 @@ function onCardClick(uid: number): void {
     toast(def.name + ' 只能自动响应「杀」，不能主动打出');
     return;
   }
-  if (def.category === 'restore') {
+  // 桃 / 无目标自用牌（酒、充电宝）/ 全场生效牌（王朝来袭）：点了直接结算
+  if (def.category === 'restore' || def.category === 'instant' || TRICK_NO_TARGET.has(def.id)) {
     act({ type: 'PLAY_CARD', player: g.active, cardUid: uid });
     return;
   }
-  // attack：选中进入指定目标模式
+  // 杀 / 需目标的技能牌：选中进入指定目标模式
   selectedUid = selectedUid === uid ? null : uid;
   render();
 }
@@ -331,7 +343,14 @@ function onPlayerClick(pid: PlayerId): void {
     toast('还没到你出牌');
     return;
   }
-  if (pid === g.active) return;
+  if (pid === g.active) {
+    // 完美服务器 / 换弹癌可以以自己为目标：点自己的面板
+    const def = selectedDef(g);
+    if (def !== null && def.category === 'trick' && TRICK_SELF_TARGET.has(def.id)) {
+      act({ type: 'PLAY_CARD', player: g.active, cardUid: selectedUid, targetId: pid });
+    }
+    return;
+  }
   act({ type: 'PLAY_CARD', player: g.active, cardUid: selectedUid, targetId: pid });
 }
 
@@ -431,6 +450,8 @@ function renderMeta(g: GameState): void {
 function renderPlayers(g: GameState): void {
   const wrap = byId('players');
   wrap.innerHTML = '';
+  const selDef = selectedDef(g);
+  const selfOk = selDef !== null && selDef.category === 'trick' && TRICK_SELF_TARGET.has(selDef.id);
   for (const p of g.players) {
     const def = g.characterDefs[p.characterId];
     const panel = el('div', 'player' + (p.alive ? '' : ' dead'));
@@ -441,8 +462,13 @@ function renderPlayers(g: GameState): void {
     const hp = el('div', 'hp');
     for (let i = 0; i < p.maxHp; i++) hp.appendChild(el('span', 'hp-cell' + (i < p.hp ? ' full' : '')));
     panel.appendChild(hp);
-    panel.appendChild(el('div', 'player-info muted', `手牌 ${p.hand.length} 张${activeMark}${p.alive ? '' : ' · 出局'}`));
-    if (selectedUid !== null && p.id !== g.active && p.alive && myTurn(g)) panel.classList.add('targetable');
+    const shieldMark = p.perfectShield ? '｜🛡 完美服务器护盾' : '';
+    panel.appendChild(
+      el('div', 'player-info muted', `手牌 ${p.hand.length} 张${shieldMark}${activeMark}${p.alive ? '' : ' · 出局'}`),
+    );
+    const canTarget =
+      selectedUid !== null && p.alive && myTurn(g) && (p.id !== g.active || selfOk);
+    if (canTarget) panel.classList.add('targetable');
     wrap.appendChild(panel);
   }
 }
@@ -463,9 +489,15 @@ function renderHand(g: GameState): void {
   } else if (!myTurn(g)) {
     hint.textContent = '等待对方行动…';
   } else if (selectedUid !== null) {
-    hint.textContent = '已选「杀」：点击对方玩家面板出牌；再点一次取消。';
+    const selDef = selectedDef(g);
+    const selfOk =
+      selDef !== null && selDef.category === 'trick' && TRICK_SELF_TARGET.has(selDef.id)
+        ? '（也可点自己的面板以自己为目标）'
+        : '';
+    hint.textContent = `已选「${selDef?.name ?? ''}」：点击目标玩家面板出牌${selfOk}；再点一次取消。`;
   } else {
-    hint.textContent = '点「杀」选目标，点「桃」直接回血，「闪」只能自动响应。也可 Bot 代打。';
+    hint.textContent =
+      '点「杀/技能牌」选目标，点「桃/酒/充电宝/王朝来袭」直接结算，「闪」只能自动响应。也可 Bot 代打。';
   }
   const hand = byId('hand');
   hand.innerHTML = '';
@@ -565,6 +597,23 @@ function playerLabelOf(g: GameState, id: PlayerId): string {
 
 // ---------- gallery ----------
 
+/** 缩略图地址（scripts/make-thumbs.mjs 生成；缺图时由 onerror 回退原图） */
+function thumbSrc(dir: string, file: string): string {
+  return `/${dir}/.thumbs/${file.replace(/\.png$/i, '.jpg')}`;
+}
+
+function buildGalleryImg(dir: string, file: string, alt: string): HTMLImageElement {
+  const img = document.createElement('img');
+  // 缩略图单张 ~27KB，直接 eager：优化已由缩略图完成，且不依赖渲染器懒加载触发时机
+  img.alt = alt;
+  img.onerror = () => {
+    img.onerror = null;
+    img.src = `/${dir}/${file}`;
+  };
+  img.src = thumbSrc(dir, file);
+  return img;
+}
+
 function buildGallery(): void {
   const root = byId('tab-gallery');
   root.innerHTML = '';
@@ -575,12 +624,11 @@ function buildGallery(): void {
   );
   const cardGrid = el('div', 'gallery-grid');
   for (const c of cardsManifest) {
-    const item = el('div', 'g-item' + (c.defId === null ? ' pending' : ''));
-    const img = document.createElement('img');
-    img.loading = 'lazy';
-    img.src = '/cards/' + c.file;
-    img.alt = c.name;
-    item.appendChild(img);
+    const item = el('a', 'g-item' + (c.defId === null ? ' pending' : ''));
+    (item as HTMLAnchorElement).href = '/cards/' + c.file;
+    (item as HTMLAnchorElement).target = '_blank';
+    (item as HTMLAnchorElement).rel = 'noopener';
+    item.appendChild(buildGalleryImg('cards', c.file, c.name));
     const suitText = SUIT_TEXT[c.suit];
     item.appendChild(
       el('div', 'g-label', `${c.name} ${suitText.symbol}${c.rank}` + (c.defId === null ? '｜待实装' : '')),
@@ -594,12 +642,11 @@ function buildGallery(): void {
   charSec.appendChild(el('h2', '', `武将立绘（${charsManifest.length} 张，机制待定义）`));
   const charGrid = el('div', 'gallery-grid');
   for (const ch of charsManifest) {
-    const item = el('div', 'g-item');
-    const img = document.createElement('img');
-    img.loading = 'lazy';
-    img.src = '/characters/' + ch.file;
-    img.alt = ch.skin;
-    item.appendChild(img);
+    const item = el('a', 'g-item');
+    (item as HTMLAnchorElement).href = '/characters/' + ch.file;
+    (item as HTMLAnchorElement).target = '_blank';
+    (item as HTMLAnchorElement).rel = 'noopener';
+    item.appendChild(buildGalleryImg('characters', ch.file, ch.skin));
     item.appendChild(el('div', 'g-label', `${ch.factionName}｜${ch.skin}·${ch.nick}`));
     charGrid.appendChild(item);
   }
@@ -612,11 +659,12 @@ function buildGallery(): void {
   for (const e of equipManifest) {
     const item = el('div', 'g-item equip-item' + (e.file === null ? ' pending' : ''));
     if (e.file !== null) {
-      const img = document.createElement('img');
-      img.loading = 'lazy';
-      img.src = '/equipment/' + e.file;
-      img.alt = e.name;
-      item.appendChild(img);
+      const link = el('a', 'g-link');
+      (link as HTMLAnchorElement).href = '/equipment/' + e.file;
+      (link as HTMLAnchorElement).target = '_blank';
+      (link as HTMLAnchorElement).rel = 'noopener';
+      link.appendChild(buildGalleryImg('equipment', e.file, e.name));
+      item.appendChild(link);
     }
     const suitText = SUIT_TEXT[e.suit];
     item.appendChild(

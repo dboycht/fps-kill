@@ -2,7 +2,7 @@
   {
     "file": "bullet-eater.diamond.2.png",
     "type": "bullet-eater",
-    "defId": null,
+    "defId": "bullet-eater",
     "name": "吞子弹",
     "suit": "diamond",
     "rank": "2"
@@ -10,7 +10,7 @@
   {
     "file": "bullet-eater.diamond.6.png",
     "type": "bullet-eater",
-    "defId": null,
+    "defId": "bullet-eater",
     "name": "吞子弹",
     "suit": "diamond",
     "rank": "6"
@@ -18,7 +18,7 @@
   {
     "file": "bullet-eater.diamond.8.png",
     "type": "bullet-eater",
-    "defId": null,
+    "defId": "bullet-eater",
     "name": "吞子弹",
     "suit": "diamond",
     "rank": "8"
@@ -26,7 +26,7 @@
   {
     "file": "bullet-eater.diamond.J.png",
     "type": "bullet-eater",
-    "defId": null,
+    "defId": "bullet-eater",
     "name": "吞子弹",
     "suit": "diamond",
     "rank": "J"
@@ -34,7 +34,7 @@
   {
     "file": "bullet-eater.spade.2.png",
     "type": "bullet-eater",
-    "defId": null,
+    "defId": "bullet-eater",
     "name": "吞子弹",
     "suit": "spade",
     "rank": "2"
@@ -42,7 +42,7 @@
   {
     "file": "bullet-eater.spade.4.png",
     "type": "bullet-eater",
-    "defId": null,
+    "defId": "bullet-eater",
     "name": "吞子弹",
     "suit": "spade",
     "rank": "4"
@@ -50,7 +50,7 @@
   {
     "file": "bullet-eater.spade.9.png",
     "type": "bullet-eater",
-    "defId": null,
+    "defId": "bullet-eater",
     "name": "吞子弹",
     "suit": "spade",
     "rank": "9"
@@ -58,7 +58,7 @@
   {
     "file": "bullet-eater.spade.K.png",
     "type": "bullet-eater",
-    "defId": null,
+    "defId": "bullet-eater",
     "name": "吞子弹",
     "suit": "spade",
     "rank": "K"
@@ -66,7 +66,7 @@
   {
     "file": "dynasty-strike.heart.3.png",
     "type": "dynasty-strike",
-    "defId": null,
+    "defId": "dynasty-strike",
     "name": "王朝来袭",
     "suit": "heart",
     "rank": "3"
@@ -74,7 +74,7 @@
   {
     "file": "dynasty-strike.heart.6.png",
     "type": "dynasty-strike",
-    "defId": null,
+    "defId": "dynasty-strike",
     "name": "王朝来袭",
     "suit": "heart",
     "rank": "6"
@@ -82,7 +82,7 @@
   {
     "file": "dynasty-strike.heart.K.png",
     "type": "dynasty-strike",
-    "defId": null,
+    "defId": "dynasty-strike",
     "name": "王朝来袭",
     "suit": "heart",
     "rank": "K"
@@ -90,7 +90,7 @@
   {
     "file": "dynasty-strike.heart.A.png",
     "type": "dynasty-strike",
-    "defId": null,
+    "defId": "dynasty-strike",
     "name": "王朝来袭",
     "suit": "heart",
     "rank": "A"
@@ -98,7 +98,7 @@
   {
     "file": "friendly-tk.club.8.png",
     "type": "friendly-tk",
-    "defId": null,
+    "defId": "friendly-tk",
     "name": "善意TK",
     "suit": "club",
     "rank": "8"
@@ -106,7 +106,7 @@
   {
     "file": "friendly-tk.club.A.png",
     "type": "friendly-tk",
-    "defId": null,
+    "defId": "friendly-tk",
     "name": "善意TK",
     "suit": "club",
     "rank": "A"
@@ -114,7 +114,7 @@
   {
     "file": "friendly-tk.spade.6.png",
     "type": "friendly-tk",
-    "defId": null,
+    "defId": "friendly-tk",
     "name": "善意TK",
     "suit": "spade",
     "rank": "6"
@@ -122,7 +122,7 @@
   {
     "file": "friendly-tk.spade.A.png",
     "type": "friendly-tk",
-    "defId": null,
+    "defId": "friendly-tk",
     "name": "善意TK",
     "suit": "spade",
     "rank": "A"
@@ -130,7 +130,7 @@
   {
     "file": "gimme-that.club.9.png",
     "type": "gimme-that",
-    "defId": null,
+    "defId": "gimme-that",
     "name": "拿来吧你",
     "suit": "club",
     "rank": "9"
@@ -138,7 +138,7 @@
   {
     "file": "gimme-that.diamond.8.png",
     "type": "gimme-that",
-    "defId": null,
+    "defId": "gimme-that",
     "name": "拿来吧你",
     "suit": "diamond",
     "rank": "8"
@@ -146,7 +146,7 @@
   {
     "file": "gimme-that.heart.K.png",
     "type": "gimme-that",
-    "defId": null,
+    "defId": "gimme-that",
     "name": "拿来吧你",
     "suit": "heart",
     "rank": "K"
@@ -154,7 +154,7 @@
   {
     "file": "gimme-that.spade.K.png",
     "type": "gimme-that",
-    "defId": null,
+    "defId": "gimme-that",
     "name": "拿来吧你",
     "suit": "spade",
     "rank": "K"
@@ -162,7 +162,7 @@
   {
     "file": "jiu.club.6.png",
     "type": "jiu",
-    "defId": null,
+    "defId": "jiu",
     "name": "酒",
     "suit": "club",
     "rank": "6"
@@ -170,7 +170,7 @@
   {
     "file": "jiu.club.7.png",
     "type": "jiu",
-    "defId": null,
+    "defId": "jiu",
     "name": "酒",
     "suit": "club",
     "rank": "7"
@@ -178,7 +178,7 @@
   {
     "file": "jiu.diamond.5.png",
     "type": "jiu",
-    "defId": null,
+    "defId": "jiu",
     "name": "酒",
     "suit": "diamond",
     "rank": "5"
@@ -186,7 +186,7 @@
   {
     "file": "jiu.diamond.7.png",
     "type": "jiu",
-    "defId": null,
+    "defId": "jiu",
     "name": "酒",
     "suit": "diamond",
     "rank": "7"
@@ -194,7 +194,7 @@
   {
     "file": "jiu.heart.8.png",
     "type": "jiu",
-    "defId": null,
+    "defId": "jiu",
     "name": "酒",
     "suit": "heart",
     "rank": "8"
@@ -202,7 +202,7 @@
   {
     "file": "jiu.heart.J.png",
     "type": "jiu",
-    "defId": null,
+    "defId": "jiu",
     "name": "酒",
     "suit": "heart",
     "rank": "J"
@@ -210,7 +210,7 @@
   {
     "file": "jiu.spade.5.png",
     "type": "jiu",
-    "defId": null,
+    "defId": "jiu",
     "name": "酒",
     "suit": "spade",
     "rank": "5"
@@ -218,7 +218,7 @@
   {
     "file": "jiu.spade.10.png",
     "type": "jiu",
-    "defId": null,
+    "defId": "jiu",
     "name": "酒",
     "suit": "spade",
     "rank": "10"
@@ -226,7 +226,7 @@
   {
     "file": "mid-door-awp.spade.4.png",
     "type": "mid-door-awp",
-    "defId": null,
+    "defId": "mid-door-awp",
     "name": "中门对狙",
     "suit": "spade",
     "rank": "4"
@@ -234,7 +234,7 @@
   {
     "file": "mid-door-awp.spade.7.png",
     "type": "mid-door-awp",
-    "defId": null,
+    "defId": "mid-door-awp",
     "name": "中门对狙",
     "suit": "spade",
     "rank": "7"
@@ -242,7 +242,7 @@
   {
     "file": "mid-door-awp.spade.8.png",
     "type": "mid-door-awp",
-    "defId": null,
+    "defId": "mid-door-awp",
     "name": "中门对狙",
     "suit": "spade",
     "rank": "8"
@@ -250,7 +250,7 @@
   {
     "file": "mid-door-awp.spade.K.png",
     "type": "mid-door-awp",
-    "defId": null,
+    "defId": "mid-door-awp",
     "name": "中门对狙",
     "suit": "spade",
     "rank": "K"
@@ -258,7 +258,7 @@
   {
     "file": "perfect-server.club.6.png",
     "type": "perfect-server",
-    "defId": null,
+    "defId": "perfect-server",
     "name": "完美服务器",
     "suit": "club",
     "rank": "6"
@@ -266,7 +266,7 @@
   {
     "file": "perfect-server.club.9.png",
     "type": "perfect-server",
-    "defId": null,
+    "defId": "perfect-server",
     "name": "完美服务器",
     "suit": "club",
     "rank": "9"
@@ -274,7 +274,7 @@
   {
     "file": "perfect-server.club.J.png",
     "type": "perfect-server",
-    "defId": null,
+    "defId": "perfect-server",
     "name": "完美服务器",
     "suit": "club",
     "rank": "J"
@@ -282,7 +282,7 @@
   {
     "file": "perfect-server.club.A.png",
     "type": "perfect-server",
-    "defId": null,
+    "defId": "perfect-server",
     "name": "完美服务器",
     "suit": "club",
     "rank": "A"
@@ -290,7 +290,7 @@
   {
     "file": "perfect-server.heart.5.png",
     "type": "perfect-server",
-    "defId": null,
+    "defId": "perfect-server",
     "name": "完美服务器",
     "suit": "heart",
     "rank": "5"
@@ -298,7 +298,7 @@
   {
     "file": "perfect-server.heart.7.png",
     "type": "perfect-server",
-    "defId": null,
+    "defId": "perfect-server",
     "name": "完美服务器",
     "suit": "heart",
     "rank": "7"
@@ -306,7 +306,7 @@
   {
     "file": "perfect-server.heart.Q.png",
     "type": "perfect-server",
-    "defId": null,
+    "defId": "perfect-server",
     "name": "完美服务器",
     "suit": "heart",
     "rank": "Q"
@@ -314,7 +314,7 @@
   {
     "file": "perfect-server.heart.A.png",
     "type": "perfect-server",
-    "defId": null,
+    "defId": "perfect-server",
     "name": "完美服务器",
     "suit": "heart",
     "rank": "A"
@@ -322,7 +322,7 @@
   {
     "file": "power-bank.club.6.png",
     "type": "power-bank",
-    "defId": null,
+    "defId": "power-bank",
     "name": "充电宝",
     "suit": "club",
     "rank": "6"
@@ -330,7 +330,7 @@
   {
     "file": "power-bank.club.8.png",
     "type": "power-bank",
-    "defId": null,
+    "defId": "power-bank",
     "name": "充电宝",
     "suit": "club",
     "rank": "8"
@@ -338,7 +338,7 @@
   {
     "file": "power-bank.club.9.png",
     "type": "power-bank",
-    "defId": null,
+    "defId": "power-bank",
     "name": "充电宝",
     "suit": "club",
     "rank": "9"
@@ -346,7 +346,7 @@
   {
     "file": "power-bank.club.A.png",
     "type": "power-bank",
-    "defId": null,
+    "defId": "power-bank",
     "name": "充电宝",
     "suit": "club",
     "rank": "A"
@@ -354,7 +354,7 @@
   {
     "file": "power-bank.diamond.2.png",
     "type": "power-bank",
-    "defId": null,
+    "defId": "power-bank",
     "name": "充电宝",
     "suit": "diamond",
     "rank": "2"
@@ -362,7 +362,7 @@
   {
     "file": "power-bank.diamond.6.png",
     "type": "power-bank",
-    "defId": null,
+    "defId": "power-bank",
     "name": "充电宝",
     "suit": "diamond",
     "rank": "6"
@@ -370,7 +370,7 @@
   {
     "file": "power-bank.diamond.7.png",
     "type": "power-bank",
-    "defId": null,
+    "defId": "power-bank",
     "name": "充电宝",
     "suit": "diamond",
     "rank": "7"
@@ -378,7 +378,7 @@
   {
     "file": "power-bank.diamond.J.png",
     "type": "power-bank",
-    "defId": null,
+    "defId": "power-bank",
     "name": "充电宝",
     "suit": "diamond",
     "rank": "J"
@@ -386,7 +386,7 @@
   {
     "file": "reload-addict.diamond.2.png",
     "type": "reload-addict",
-    "defId": null,
+    "defId": "reload-addict",
     "name": "换弹癌",
     "suit": "diamond",
     "rank": "2"
@@ -394,7 +394,7 @@
   {
     "file": "reload-addict.diamond.4.png",
     "type": "reload-addict",
-    "defId": null,
+    "defId": "reload-addict",
     "name": "换弹癌",
     "suit": "diamond",
     "rank": "4"
@@ -402,7 +402,7 @@
   {
     "file": "reload-addict.diamond.9.png",
     "type": "reload-addict",
-    "defId": null,
+    "defId": "reload-addict",
     "name": "换弹癌",
     "suit": "diamond",
     "rank": "9"

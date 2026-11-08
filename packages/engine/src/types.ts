@@ -2,7 +2,7 @@ import type { RngState } from './rng.ts';
 
 export type PlayerId = number;
 
-export type CardCategory = 'attack' | 'response' | 'restore';
+export type CardCategory = 'attack' | 'response' | 'restore' | 'instant' | 'trick';
 
 export type Suit = 'spade' | 'club' | 'heart' | 'diamond';
 
@@ -57,6 +57,10 @@ export interface PlayerState {
   maxHp: number;
   hand: CardInstance[];
   alive: boolean;
+  /** 本回合是否已用过【酒】（每回合限一次；回合开始重置） */
+  jiuUsed: boolean;
+  /** 【完美服务器】的抵消护盾：抵消下一次以该玩家为目标的道具牌（一次性） */
+  perfectShield: boolean;
 }
 
 export interface LogEntry {
